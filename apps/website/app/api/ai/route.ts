@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import {
+  nexoraTools,
+  nexoraToolDefinitions,
+} from "@/lib/ai/tools";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -180,9 +184,22 @@ Informações adicionais: ${conhecimento.informacoes || ""}
       }
     }
 
+    // Preparar mensagens para a OpenAI
+    const inputMensagens = mensagens.map(
+      (mensagem: {
+        role: "user" | "assistant";
+        content: string;
+      }) => ({
+        role: mensagem.role,
+        content: mensagem.content,
+      })
+    );
+
     // Pedir resposta à OpenAI
-    const resposta = await openai.responses.create({
+    let resposta = await openai.responses.create({
       model: "gpt-5-mini",
+
+      tools: nexoraToolDefinitions,
 
       instructions: `
 És a Nexora AI, o assistente inteligente da Nexora Tech.
@@ -214,21 +231,115 @@ REGRAS:
 5. Podes responder a perguntas gerais sobre tecnologia,
    inteligência artificial, software e automação.
 
-6. Mantém o contexto da conversa.
+6. Quando existir uma ferramenta adequada para obter
+   informação externa ou executar uma tarefa, utiliza-a.
 
-7. Responde de forma profissional, clara e natural.
+7. Mantém o contexto da conversa.
+
+8. Responde de forma profissional, clara e natural.
 `,
 
-      input: mensagens.map(
-        (mensagem: {
-          role: "user" | "assistant";
-          content: string;
-        }) => ({
-          role: mensagem.role,
-          content: mensagem.content,
-        })
-      ),
+      input: inputMensagens,
     });
+
+    // Verificar se a OpenAI solicitou alguma ferramenta
+    const chamadasFerramentas = resposta.output.filter(
+      (item) => item.type === "function_call"
+    );
+
+    if (chamadasFerramentas.length > 0) {
+      const resultadosFerramentas = [];
+
+      for (const chamada of chamadasFerramentas) {
+        const ferramenta = nexoraTools.find(
+          (tool) => tool.name === chamada.name
+        );
+
+        if (!ferramenta) {
+          resultadosFerramentas.push({
+            type: "function_call_output" as const,
+            call_id: chamada.call_id,
+            output: JSON.stringify({
+              success: false,
+              error: `Ferramenta não encontrada: ${chamada.name}`,
+            }),
+          });
+
+          continue;
+        }
+
+        try {
+          const argumentos = JSON.parse(chamada.arguments);
+
+          const resultado = await ferramenta.execute(
+            argumentos,
+            {
+              userId: user.id,
+              companyId: empresa.id,
+            }
+          );
+
+          resultadosFerramentas.push({
+            type: "function_call_output" as const,
+            call_id: chamada.call_id,
+            output: JSON.stringify(resultado),
+          });
+        } catch (erro) {
+          console.error(
+            `Erro ao executar ferramenta ${chamada.name}:`,
+            erro
+          );
+
+          resultadosFerramentas.push({
+            type: "function_call_output" as const,
+            call_id: chamada.call_id,
+            output: JSON.stringify({
+              success: false,
+              error: "Não foi possível executar a ferramenta.",
+            }),
+          });
+        }
+      }
+
+      // Enviar os resultados das ferramentas novamente para a OpenAI
+      resposta = await openai.responses.create({
+        model: "gpt-5-mini",
+
+        tools: nexoraToolDefinitions,
+
+        instructions: `
+És a Nexora AI, o assistente inteligente da Nexora Tech.
+
+Estás a ajudar a empresa:
+${empresa.name}
+
+Descrição da empresa:
+${empresa.description || ""}
+
+=== CONHECIMENTO OFICIAL ===
+
+${contextoEmpresa}
+
+=== FIM DO CONHECIMENTO ===
+
+REGRAS:
+
+1. Responde sempre em português de Portugal.
+
+2. Usa os resultados das ferramentas quando estes estiverem disponíveis.
+
+3. Nunca inventes informações.
+
+4. Mantém o contexto da conversa.
+
+5. Responde de forma profissional, clara e natural.
+`,
+
+        previous_response_id: resposta.id,
+
+        input: resultadosFerramentas,
+      });
+    }
 
     const textoResposta = resposta.output_text;
 
@@ -278,6 +389,7 @@ REGRAS:
     );
   }
 }
+
 export async function GET(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
@@ -312,7 +424,10 @@ export async function GET(request: Request) {
 
     if (membroError || !membro) {
       return Response.json(
-        { error: "A sua conta não está associada a nenhuma empresa." },
+        {
+          error:
+            "A sua conta não está associada a nenhuma empresa.",
+        },
         { status: 403 }
       );
     }
@@ -352,7 +467,9 @@ export async function GET(request: Request) {
     console.error("Erro ao carregar conversa:", error);
 
     return Response.json(
-      { error: "Não foi possível carregar a conversa." },
+      {
+        error: "Não foi possível carregar a conversa.",
+      },
       { status: 500 }
     );
   }
