@@ -5,6 +5,7 @@ type TavilyResult = {
   url?: string;
   content?: string;
   score?: number;
+  published_date?: string;
 };
 
 type TavilyResponse = {
@@ -17,23 +18,34 @@ export const webSearchTool: NexoraTool = {
   name: "web_search",
 
   description:
-    "Pesquisa informação atual na Internet. Use esta ferramenta quando a pergunta exigir informação recente, notícias, acontecimentos atuais, pessoas, empresas, preços ou qualquer informação que possa ter mudado desde o conhecimento do modelo.",
+    "Pesquisa informação atual na Internet. Use esta ferramenta quando a pergunta exigir informação recente, notícias, acontecimentos atuais, pessoas, empresas, preços, produtos, eventos ou qualquer informação que possa ter mudado desde o conhecimento do modelo. Para pedidos de notícias ou acontecimentos recentes, use uma pesquisa orientada para notícias.",
 
   parameters: {
     type: "object",
+
     properties: {
       consulta: {
         type: "string",
         description:
-          "A pesquisa que deve ser feita na Internet. Deve ser clara e específica.",
+          "Pesquisa clara e específica. Para notícias, inclua o assunto e indique que procura notícias recentes ou atuais quando isso for relevante.",
+      },
+
+      tipo: {
+        type: "string",
+        enum: ["geral", "noticias"],
+        description:
+          "Use 'noticias' quando o utilizador pedir notícias, acontecimentos recentes, últimas novidades ou o que aconteceu recentemente. Use 'geral' para os restantes pedidos.",
       },
     },
-    required: ["consulta"],
+
+    required: ["consulta", "tipo"],
+
     additionalProperties: false,
   },
 
   async execute(arguments_) {
     const consulta = arguments_.consulta;
+    const tipo = arguments_.tipo;
 
     if (
       typeof consulta !== "string" ||
@@ -41,11 +53,24 @@ export const webSearchTool: NexoraTool = {
     ) {
       return {
         success: false,
-        error: "É necessário indicar uma pesquisa.",
+        error:
+          "É necessário indicar uma pesquisa.",
       };
     }
 
-    const apiKey = process.env.TAVILY_API_KEY;
+    if (
+      tipo !== "geral" &&
+      tipo !== "noticias"
+    ) {
+      return {
+        success: false,
+        error:
+          "O tipo de pesquisa indicado não é válido.",
+      };
+    }
+
+    const apiKey =
+      process.env.TAVILY_API_KEY;
 
     if (!apiKey) {
       return {
@@ -62,19 +87,33 @@ export const webSearchTool: NexoraTool = {
           method: "POST",
 
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
 
           cache: "no-store",
 
           body: JSON.stringify({
             api_key: apiKey,
+
             query: consulta.trim(),
+
             search_depth: "basic",
-            topic: "general",
+
+            topic:
+              tipo === "noticias"
+                ? "news"
+                : "general",
+
             max_results: 5,
+
             include_answer: true,
+
             include_raw_content: false,
+
+            include_domains: [],
+
+            exclude_domains: [],
           }),
         }
       );
@@ -97,18 +136,53 @@ export const webSearchTool: NexoraTool = {
         (await response.json()) as TavilyResponse;
 
       const resultados =
-        data.results?.map((resultado, index) => ({
-          numero: index + 1,
-          titulo: resultado.title || "",
-          url: resultado.url || "",
-          conteudo: resultado.content || "",
-          relevancia: resultado.score ?? null,
-        })) || [];
+        data.results?.map(
+          (resultado, index) => ({
+            numero: index + 1,
+
+            titulo:
+              resultado.title || "",
+
+            url:
+              resultado.url || "",
+
+            conteudo:
+              resultado.content || "",
+
+            relevancia:
+              resultado.score ?? null,
+
+            data_publicacao:
+              resultado.published_date ||
+              null,
+          })
+        ) || [];
+
+      const fontes =
+        resultados
+          .filter(
+            (resultado) =>
+              resultado.url
+          )
+          .map(
+            (resultado) => ({
+              numero:
+                resultado.numero,
+
+              titulo:
+                resultado.titulo,
+
+              url:
+                resultado.url,
+            })
+          );
 
       return {
         success: true,
 
         fonte: "Tavily",
+
+        tipo,
 
         consulta:
           data.query || consulta,
@@ -118,12 +192,7 @@ export const webSearchTool: NexoraTool = {
 
         resultados,
 
-        fontes:
-          resultados.map((resultado) => ({
-            numero: resultado.numero,
-            titulo: resultado.titulo,
-            url: resultado.url,
-          })),
+        fontes,
       };
     } catch (error) {
       console.error(
@@ -133,6 +202,7 @@ export const webSearchTool: NexoraTool = {
 
       return {
         success: false,
+
         error:
           "Não foi possível pesquisar na Internet neste momento.",
       };
