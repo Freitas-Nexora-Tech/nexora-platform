@@ -60,10 +60,13 @@ export const webSearchTool: NexoraTool = {
         "https://api.tavily.com/search",
         {
           method: "POST",
+
           headers: {
             "Content-Type": "application/json",
           },
+
           cache: "no-store",
+
           body: JSON.stringify({
             api_key: apiKey,
             query: consulta.trim(),
@@ -93,18 +96,34 @@ export const webSearchTool: NexoraTool = {
       const data =
         (await response.json()) as TavilyResponse;
 
+      const resultados =
+        data.results?.map((resultado, index) => ({
+          numero: index + 1,
+          titulo: resultado.title || "",
+          url: resultado.url || "",
+          conteudo: resultado.content || "",
+          relevancia: resultado.score ?? null,
+        })) || [];
+
       return {
         success: true,
+
         fonte: "Tavily",
-        consulta: data.query || consulta,
-        resumo: data.answer || null,
-        resultados:
-          data.results?.map((resultado) => ({
-            titulo: resultado.title || "",
-            url: resultado.url || "",
-            conteudo: resultado.content || "",
-            relevancia: resultado.score ?? null,
-          })) || [],
+
+        consulta:
+          data.query || consulta,
+
+        resumo:
+          data.answer || null,
+
+        resultados,
+
+        fontes:
+          resultados.map((resultado) => ({
+            numero: resultado.numero,
+            titulo: resultado.titulo,
+            url: resultado.url,
+          })),
       };
     } catch (error) {
       console.error(
