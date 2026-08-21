@@ -1,5 +1,6 @@
 import { testTool } from "./test";
 import { weatherTool } from "./weather";
+import { webSearchTool } from "./web-search";
 
 export type ToolContext = {
   userId: string;
@@ -19,12 +20,15 @@ export type NexoraTool = {
 export const nexoraTools: NexoraTool[] = [
   testTool,
   weatherTool,
+  webSearchTool,
 ];
 
-export const nexoraToolDefinitions = nexoraTools.map((tool) => ({
-  type: "function" as const,
-  name: tool.name,
-  description: tool.description,
-  parameters: tool.parameters,
-  strict: true,
-}));
+export const nexoraToolDefinitions = nexoraTools.map(
+  (tool) => ({
+    type: "function" as const,
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
+    strict: true,
+  })
+);
