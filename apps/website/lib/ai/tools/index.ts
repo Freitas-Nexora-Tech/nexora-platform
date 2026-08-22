@@ -3,6 +3,7 @@ import { weatherTool } from "./weather";
 import { webSearchTool } from "./web-search";
 import { calculatorTool } from "./calculator";
 import { currencyTool } from "./currency";
+import { timeTool } from "./time";
 
 export type ToolContext = {
   userId: string;
@@ -25,6 +26,7 @@ export const nexoraTools: NexoraTool[] = [
   webSearchTool,
   calculatorTool,
   currencyTool,
+  timeTool,
 ];
 
 export const nexoraToolDefinitions =
