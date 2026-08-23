@@ -1,49 +1,97 @@
 export default function Hero() {
   return (
     <section
-      className="relative min-h-screen flex items-center justify-center px-6 pt-20 text-center text-white bg-slate-950 overflow-hidden"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 pt-20 text-center text-white"
       style={{
-        backgroundImage: "url('/images/hero-tech.png')",
+        backgroundImage:
+          "url('/images/hero-tech.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
     >
-      {/* Overlay escuro para melhorar a leitura */}
-      <div className="absolute inset-0 bg-slate-950/65" />
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-slate-950/75" />
+
+      {/* Gradiente inferior */}
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent" />
+
+      {/* Brilho */}
+      <div className="absolute left-1/2 top-1/4 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
 
       {/* Conteúdo */}
-      <div className="relative z-10 max-w-4xl mx-auto">
+      <div className="relative z-10 mx-auto max-w-5xl">
 
-        <span className="text-cyan-400 font-semibold tracking-widest uppercase">
-          Software • IA • Cloud
+        <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
+          Inteligência Artificial • Automação • Software
         </span>
 
-        <h1 className="mt-4 text-5xl md:text-7xl font-extrabold tracking-tight">
-          Nexora Tech
+        <h1 className="mt-7 text-5xl font-extrabold tracking-tight md:text-7xl">
+          Tecnologia que{" "}
+          <span className="text-cyan-400">
+            trabalha
+          </span>{" "}
+          para o seu negócio.
         </h1>
 
-        <p className="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-slate-200 leading-relaxed">
-          Criamos soluções digitais inteligentes para empresas que desejam
-          crescer utilizando tecnologia, automação e Inteligência Artificial.
+        <p className="mx-auto mt-7 max-w-3xl text-lg leading-8 text-slate-300 md:text-xl">
+          A Nexora Tech desenvolve soluções digitais,
+          inteligência artificial e automação para
+          ajudar empresas a simplificar processos,
+          aumentar a produtividade e crescer com
+          tecnologia.
         </p>
 
-        <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+        <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
 
-          <button
-            className="rounded-xl bg-cyan-500 px-7 py-4 font-semibold
-            text-slate-950 hover:bg-cyan-400 transition duration-300
-            shadow-lg shadow-cyan-500/20"
+          <a
+            href="#contacto"
+            className="rounded-xl bg-cyan-500 px-8 py-4 font-bold text-slate-950 shadow-lg shadow-cyan-500/20 transition duration-300 hover:bg-cyan-400 hover:shadow-cyan-500/30"
           >
-            Solicitar Orçamento
-          </button>
+            Falar com a Nexora
+          </a>
 
-          <button
-            className="rounded-xl border border-cyan-400 px-7 py-4
-            font-semibold text-white hover:bg-cyan-500/20
-            transition duration-300"
+          <a
+            href="#servicos"
+            className="rounded-xl border border-cyan-400/50 bg-slate-950/30 px-8 py-4 font-semibold text-white transition duration-300 hover:border-cyan-400 hover:bg-cyan-500/10"
           >
-            Conhecer Serviços
-          </button>
+            Conhecer soluções
+          </a>
+
+        </div>
+
+        {/* Destaques */}
+
+        <div className="mx-auto mt-16 grid max-w-3xl gap-4 sm:grid-cols-3">
+
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-5 py-4 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-cyan-400">
+              IA
+            </p>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Soluções inteligentes
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-5 py-4 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-cyan-400">
+              Automação
+            </p>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Menos tarefas manuais
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-5 py-4 backdrop-blur-sm">
+            <p className="text-2xl font-bold text-cyan-400">
+              Software
+            </p>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Soluções à medida
+            </p>
+          </div>
 
         </div>
 

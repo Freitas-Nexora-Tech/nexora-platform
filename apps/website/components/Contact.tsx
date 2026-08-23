@@ -114,7 +114,7 @@ export default function Contact() {
               </p>
 
               <a
-                href="https://wa.me/351000000000"
+                href="https://wa.me/351935438339"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block mt-4 text-cyan-400 hover:text-cyan-300 transition"
