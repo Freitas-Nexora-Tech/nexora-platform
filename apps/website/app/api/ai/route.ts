@@ -12,7 +12,8 @@ const openai = new OpenAI({
 const instrucoesNexora = (
   nomeEmpresa: string,
   descricaoEmpresa: string,
-  contextoEmpresa: string
+  contextoEmpresa: string,
+  contextoDocumentos: string
 ) => `
 És a Nexora AI, o assistente inteligente da Nexora Tech.
 
@@ -26,6 +27,10 @@ ${descricaoEmpresa}
 
 ${contextoEmpresa}
 
+=== DOCUMENTOS DA EMPRESA ===
+
+${contextoDocumentos}
+
 === FIM DO CONHECIMENTO ===
 
 REGRAS:
@@ -35,37 +40,50 @@ REGRAS:
 2. Usa o conhecimento oficial da empresa quando a pergunta
    estiver relacionada com a empresa.
 
-3. Nunca inventes informações sobre a empresa.
+3. Usa também o conteúdo dos documentos da empresa quando
+   a pergunta estiver relacionada com esse conteúdo.
 
-4. Se não tiveres uma informação disponível, diz claramente
-   que não tens essa informação.
+4. Nunca inventes informações sobre a empresa ou sobre os
+   documentos.
 
-5. Podes responder a perguntas gerais sobre tecnologia,
+5. Se não tiveres uma informação disponível no conhecimento
+   oficial ou nos documentos, diz claramente que não tens
+   essa informação.
+
+6. Podes responder a perguntas gerais sobre tecnologia,
    inteligência artificial, software, automação e outros
    assuntos gerais.
 
-6. Quando a pergunta exigir informação atual, recente,
+7. Quando a pergunta exigir informação atual, recente,
    externa ou que possa ter mudado, utiliza a ferramenta
    adequada.
 
-7. Quando utilizares a ferramenta web_search, baseia a
+8. Quando utilizares a ferramenta web_search, baseia a
    resposta nos resultados encontrados.
 
-8. Nunca inventes fontes, títulos, nomes de sites ou URLs.
+9. Nunca inventes fontes, títulos, nomes de sites ou URLs.
 
-9. Quando utilizares a web_search, podes mencionar as fontes
-   relevantes na resposta, mas não precisas de escrever
-   URLs diretamente no texto.
+10. Quando utilizares a web_search, podes mencionar as fontes
+    relevantes na resposta, mas não precisas de escrever
+    URLs diretamente no texto.
 
-10. As fontes reais da pesquisa serão apresentadas pela
+11. As fontes reais da pesquisa serão apresentadas pela
     aplicação separadamente da resposta.
 
-11. Se os resultados forem insuficientes, diz claramente
+12. Se os resultados forem insuficientes, diz claramente
     que não foi possível encontrar informação suficiente.
 
-12. Mantém o contexto da conversa.
+13. Mantém o contexto da conversa.
 
-13. Responde de forma profissional, clara e natural.
+14. Responde de forma profissional, clara e natural.
+
+15. Quando responderes com base num documento, não afirmes
+    que consultaste informação que não esteja realmente
+    presente no conteúdo disponibilizado.
+
+16. Se existirem informações diferentes entre documentos,
+    não escolhas uma delas arbitrariamente. Explica que os
+    documentos apresentam informações diferentes.
 `;
 
 type FontePesquisa = {
@@ -204,6 +222,53 @@ Informações adicionais: ${conhecimento.informacoes || ""}
             .join("\n")
         : "Não existe conhecimento registado para esta empresa.";
 
+    // Documentos da empresa
+    const {
+      data: documentos,
+      error: documentosError,
+    } = await supabase
+      .from("company_documents")
+      .select(
+        "id, file_name, extracted_text"
+      )
+      .eq("company_id", empresa.id)
+      .not(
+        "extracted_text",
+        "is",
+        null
+      );
+
+    if (documentosError) {
+      console.error(
+        "Erro ao obter documentos:",
+        documentosError
+      );
+
+      return Response.json(
+        {
+          error:
+            "Não foi possível obter os documentos da empresa.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const contextoDocumentos =
+      documentos &&
+      documentos.length > 0
+        ? documentos
+            .map(
+              (documento) => `
+=== DOCUMENTO: ${documento.file_name} ===
+
+${documento.extracted_text || ""}
+
+=== FIM DO DOCUMENTO ===
+`
+            )
+            .join("\n")
+        : "Não existem documentos com texto extraído para esta empresa.";
+
     // Criar ou recuperar conversa
     let conversaId = conversationId;
 
@@ -318,7 +383,8 @@ Informações adicionais: ${conhecimento.informacoes || ""}
           instrucoesNexora(
             empresa.name,
             empresa.description || "",
-            contextoEmpresa
+            contextoEmpresa,
+            contextoDocumentos
           ),
 
         input:
@@ -447,7 +513,8 @@ Informações adicionais: ${conhecimento.informacoes || ""}
               empresa.name,
               empresa.description ||
                 "",
-              contextoEmpresa
+              contextoEmpresa,
+              contextoDocumentos
             ),
 
           previous_response_id:

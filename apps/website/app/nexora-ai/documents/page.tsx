@@ -1,23 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 type Documento = {
   id: string;
   file_name: string;
-  storage_path: string;
   mime_type: string | null;
   file_size: number | null;
+  created_at: string;
+  processado: boolean;
 };
 
 export default function NexoraAIDocumentsPage() {
   const [ficheiro, setFicheiro] =
     useState<File | null>(null);
 
-  const [documento, setDocumento] =
-    useState<Documento | null>(null);
+  const [documentos, setDocumentos] =
+    useState<Documento[]>([]);
 
   const [aCarregar, setACarregar] =
     useState(false);
@@ -25,14 +26,63 @@ export default function NexoraAIDocumentsPage() {
   const [aExtrair, setAExtrair] =
     useState(false);
 
+  const [aEliminar, setAEliminar] =
+    useState(false);
+
+  const [aCarregarLista, setACarregarLista] =
+    useState(true);
+
   const [mensagem, setMensagem] =
     useState("");
 
   const [erro, setErro] =
     useState("");
 
-  const [textoExtraido, setTextoExtraido] =
-    useState("");
+  async function carregarDocumentos() {
+    try {
+      setACarregarLista(true);
+      setErro("");
+
+      const response = await fetch(
+        "/api/documents",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Não foi possível carregar os documentos."
+        );
+      }
+
+      setDocumentos(
+        data.documentos || []
+      );
+    } catch (error) {
+      console.error(
+        "Erro ao carregar documentos:",
+        error
+      );
+
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível carregar os documentos."
+      );
+    } finally {
+      setACarregarLista(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarDocumentos();
+  }, []);
 
   async function enviarDocumento() {
     if (!ficheiro || aCarregar) {
@@ -42,8 +92,6 @@ export default function NexoraAIDocumentsPage() {
     setACarregar(true);
     setMensagem("");
     setErro("");
-    setTextoExtraido("");
-    setDocumento(null);
 
     try {
       const formData = new FormData();
@@ -71,10 +119,6 @@ export default function NexoraAIDocumentsPage() {
         );
       }
 
-      setDocumento(
-        data.documento
-      );
-
       setMensagem(
         "Documento carregado com sucesso."
       );
@@ -89,6 +133,8 @@ export default function NexoraAIDocumentsPage() {
       if (input) {
         input.value = "";
       }
+
+      await carregarDocumentos();
     } catch (error) {
       console.error(
         "Erro ao carregar documento:",
@@ -105,15 +151,20 @@ export default function NexoraAIDocumentsPage() {
     }
   }
 
-  async function extrairTexto() {
-    if (!documento || aExtrair) {
+  async function extrairTexto(
+    documento: Documento
+  ) {
+    if (
+      aExtrair ||
+      documento.mime_type !==
+        "application/pdf"
+    ) {
       return;
     }
 
     setAExtrair(true);
     setMensagem("");
     setErro("");
-    setTextoExtraido("");
 
     try {
       const response = await fetch(
@@ -145,14 +196,7 @@ export default function NexoraAIDocumentsPage() {
         `Texto extraído com sucesso. ${data.characters} caracteres encontrados.`
       );
 
-      /*
-       * Nesta primeira versão a API guarda
-       * o texto no Supabase, mas não o devolve.
-       *
-       * Isto é intencional.
-       * Na próxima etapa vamos criar a leitura
-       * dos documentos pela Nexora AI.
-       */
+      await carregarDocumentos();
     } catch (error) {
       console.error(
         "Erro ao extrair texto:",
@@ -169,6 +213,108 @@ export default function NexoraAIDocumentsPage() {
     }
   }
 
+  async function eliminarDocumento(
+    documento: Documento
+  ) {
+    const confirmar =
+      window.confirm(
+        `Tem a certeza que pretende eliminar "${documento.file_name}"?`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    setAEliminar(true);
+    setMensagem("");
+    setErro("");
+
+    try {
+      const response = await fetch(
+        "/api/documents",
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            documentId:
+              documento.id,
+          }),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+            "Não foi possível eliminar o documento."
+        );
+      }
+
+      setMensagem(
+        "Documento eliminado com sucesso."
+      );
+
+      await carregarDocumentos();
+    } catch (error) {
+      console.error(
+        "Erro ao eliminar documento:",
+        error
+      );
+
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Ocorreu um erro ao eliminar o documento."
+      );
+    } finally {
+      setAEliminar(false);
+    }
+  }
+
+  function formatarTamanho(
+    tamanho: number | null
+  ) {
+    if (!tamanho) {
+      return "Tamanho desconhecido";
+    }
+
+    if (tamanho < 1024) {
+      return `${tamanho} B`;
+    }
+
+    if (tamanho < 1024 * 1024) {
+      return `${(
+        tamanho / 1024
+      ).toFixed(1)} KB`;
+    }
+
+    return `${(
+      tamanho /
+      1024 /
+      1024
+    ).toFixed(2)} MB`;
+  }
+
+  function formatarData(
+    data: string
+  ) {
+    return new Date(
+      data
+    ).toLocaleDateString(
+      "pt-PT",
+      {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <Navbar />
@@ -176,7 +322,8 @@ export default function NexoraAIDocumentsPage() {
       <section className="relative overflow-hidden px-6 py-20">
         <div className="absolute left-1/2 top-20 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
 
-        <div className="relative z-10 mx-auto max-w-4xl">
+        <div className="relative z-10 mx-auto max-w-5xl">
+
           {/* Cabeçalho */}
 
           <div className="text-center">
@@ -189,17 +336,15 @@ export default function NexoraAIDocumentsPage() {
             </h1>
 
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-400">
-              Carregue documentos para que
-              a Nexora AI possa utilizar
-              esse conhecimento.
+              Faça a gestão dos documentos
+              que alimentam o conhecimento
+              da Nexora AI.
             </p>
           </div>
 
-          {/* Área principal */}
+          {/* Upload */}
 
           <div className="mt-14 rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl md:p-10">
-
-            {/* Upload */}
 
             <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950 p-8">
               <label
@@ -232,16 +377,12 @@ export default function NexoraAIDocumentsPage() {
                       selecionado
                     );
 
-                    setDocumento(null);
                     setMensagem("");
                     setErro("");
-                    setTextoExtraido("");
                   }}
                 />
               </label>
             </div>
-
-            {/* Ficheiro selecionado */}
 
             {ficheiro && (
               <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950 p-5">
@@ -254,17 +395,12 @@ export default function NexoraAIDocumentsPage() {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                  {(
-                    ficheiro.size /
-                    1024 /
-                    1024
-                  ).toFixed(2)}{" "}
-                  MB
+                  {formatarTamanho(
+                    ficheiro.size
+                  )}
                 </p>
               </div>
             )}
-
-            {/* Botão upload */}
 
             <div className="mt-8 flex justify-center">
               <button
@@ -284,94 +420,173 @@ export default function NexoraAIDocumentsPage() {
               </button>
             </div>
 
-            {/* Documento carregado */}
-
-            {documento && (
-              <div className="mt-8 rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-6">
-                <p className="text-sm font-semibold text-cyan-400">
-                  Documento carregado
-                </p>
-
-                <p className="mt-2 break-all font-medium text-slate-200">
-                  {documento.file_name}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  ID: {documento.id}
-                </p>
-
-                {/* Extração */}
-
-                <div className="mt-6 border-t border-slate-800 pt-6">
-                  <p className="text-sm text-slate-400">
-                    O documento já está guardado
-                    de forma privada. Agora
-                    podemos extrair o texto para
-                    a Nexora AI.
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={
-                      extrairTexto
-                    }
-                    disabled={
-                      aExtrair ||
-                      documento.mime_type !==
-                        "application/pdf"
-                    }
-                    className="mt-5 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-6 py-3 font-bold text-cyan-400 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {aExtrair
-                      ? "A extrair texto..."
-                      : "Extrair texto do PDF"}
-                  </button>
-
-                  {documento.mime_type !==
-                    "application/pdf" && (
-                    <p className="mt-3 text-xs text-slate-500">
-                      A extração nesta etapa
-                      está disponível apenas
-                      para PDFs.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Mensagem de sucesso */}
-
             {mensagem && (
               <p className="mt-6 text-center font-medium text-cyan-400">
                 {mensagem}
               </p>
             )}
 
-            {/* Erro */}
-
             {erro && (
               <p className="mt-6 text-center font-medium text-red-400">
                 {erro}
               </p>
             )}
-
-            {/* Privacidade */}
-
-            <div className="mt-10 rounded-2xl border border-slate-800 bg-slate-950 p-5">
-              <p className="text-sm font-semibold text-slate-300">
-                🔐 Privacidade
-              </p>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Os documentos são
-                armazenados num espaço
-                privado e associados à
-                empresa autenticada. Outras
-                empresas não têm acesso a
-                estes ficheiros.
-              </p>
-            </div>
           </div>
+
+          {/* Lista de documentos */}
+
+          <div className="mt-10">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">
+                  Documentos da empresa
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Documentos privados associados
+                  à tua empresa.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  carregarDocumentos
+                }
+                disabled={
+                  aCarregarLista
+                }
+                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400 disabled:opacity-50"
+              >
+                Atualizar
+              </button>
+            </div>
+
+            {aCarregarLista ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center text-slate-500">
+                A carregar documentos...
+              </div>
+            ) : documentos.length ===
+              0 ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center">
+                <p className="text-slate-400">
+                  Ainda não existem
+                  documentos carregados.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {documentos.map(
+                  (documento) => (
+                    <div
+                      key={
+                        documento.id
+                      }
+                      className="rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-slate-700"
+                    >
+                      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+
+                        <div className="flex min-w-0 items-start gap-4">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-2xl">
+                            📄
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="break-all font-semibold text-slate-200">
+                              {
+                                documento.file_name
+                              }
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {
+                                documento.mime_type ||
+                                "Tipo desconhecido"
+                              }
+                              {" · "}
+                              {formatarTamanho(
+                                documento.file_size
+                              )}
+                              {" · "}
+                              {formatarData(
+                                documento.created_at
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+
+                          {documento.processado ? (
+                            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-400">
+                              ✓ Texto extraído
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                extrairTexto(
+                                  documento
+                                )
+                              }
+                              disabled={
+                                aExtrair ||
+                                aEliminar ||
+                                documento.mime_type !==
+                                  "application/pdf"
+                              }
+                              className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {aExtrair
+                                ? "A extrair..."
+                                : "Extrair texto"}
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              eliminarDocumento(
+                                documento
+                              )
+                            }
+                            disabled={
+                              aEliminar ||
+                              aExtrair
+                            }
+                            className="rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {aEliminar
+                              ? "A eliminar..."
+                              : "Eliminar"}
+                          </button>
+
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Privacidade */}
+
+          <div className="mt-10 rounded-2xl border border-slate-800 bg-slate-950 p-5">
+            <p className="text-sm font-semibold text-slate-300">
+              🔐 Privacidade
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Os documentos são armazenados
+              num espaço privado e associados
+              à empresa autenticada. A Nexora
+              só disponibiliza à IA documentos
+              pertencentes à empresa do
+              utilizador autenticado.
+            </p>
+          </div>
+
         </div>
       </section>
 
