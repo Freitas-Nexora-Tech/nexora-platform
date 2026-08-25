@@ -6,14 +6,17 @@ import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-
 export default function NexoraAILoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [aCarregar, setACarregar] = useState(false);
+
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
+
   const supabase = createSupabaseBrowserClient();
 
   async function entrar(event: React.FormEvent) {
@@ -37,8 +40,8 @@ export default function NexoraAILoginPage() {
 
     await supabase.auth.getUser();
 
-      router.replace("/nexora-ai/dashboard");
-      router.refresh();
+    router.replace("/nexora-ai/dashboard");
+    router.refresh();
   }
 
   async function criarConta() {
@@ -66,6 +69,33 @@ export default function NexoraAILoginPage() {
 
     setMensagem(
       "Conta criada. Verifique o seu email para confirmar a conta."
+    );
+  }
+
+  async function recuperarPassword() {
+    setErro("");
+    setMensagem("");
+
+    if (!email) {
+      setErro("Introduza o seu email para recuperar a palavra-passe.");
+      return;
+    }
+
+    setACarregar(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/nexora-ai/reset-password`,
+    });
+
+    setACarregar(false);
+
+    if (error) {
+      setErro(error.message);
+      return;
+    }
+
+    setMensagem(
+      "Enviámos um email para recuperar a palavra-passe. Verifique a sua caixa de entrada."
     );
   }
 
@@ -149,6 +179,15 @@ export default function NexoraAILoginPage() {
               className="mt-3 w-full rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-300 transition hover:border-cyan-400 hover:text-cyan-400 disabled:opacity-50"
             >
               Criar conta
+            </button>
+
+            <button
+              type="button"
+              onClick={recuperarPassword}
+              disabled={aCarregar}
+              className="mt-5 w-full text-sm text-slate-400 transition hover:text-cyan-400 disabled:opacity-50"
+            >
+              Esqueci-me da palavra-passe
             </button>
           </form>
 

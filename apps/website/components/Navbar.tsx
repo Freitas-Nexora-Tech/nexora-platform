@@ -4,7 +4,11 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
-export default function Navbar() {
+export default function Navbar({
+  isRecoveryMode = false,
+}: {
+  isRecoveryMode?: boolean;
+}) {
   const [autenticado, setAutenticado] = useState(false);
 
   useEffect(() => {
@@ -99,7 +103,7 @@ export default function Navbar() {
         </div>
 
         {/* Área de autenticação */}
-        {autenticado ? (
+        {autenticado && !isRecoveryMode ? (
           <div className="flex items-center gap-3">
 
             <a
