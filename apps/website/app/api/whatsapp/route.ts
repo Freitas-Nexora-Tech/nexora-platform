@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const VERIFY_TOKEN =
   process.env.WHATSAPP_VERIFY_TOKEN;
@@ -43,15 +45,19 @@ export async function GET(
     );
 
     return new Response(challenge, {
-      status: 200,
+        status: 200,
       headers: {
-        "Content-Type": "text/plain",
-      },
+      "Content-Type": "text/plain",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+     },
     });
   }
 
   return new Response("Forbidden", {
     status: 403,
+    headers: {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+  },
   });
 }
 
