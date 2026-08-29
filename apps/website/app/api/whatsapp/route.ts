@@ -18,10 +18,18 @@ export async function GET(
   const challenge =
     searchParams.get("hub.challenge");
 
-  console.log("WhatsApp webhook verification:", {
+  console.log("WhatsApp webhook diagnostic:", {
     mode,
-    tokenProvided: Boolean(token),
-    challengeProvided: Boolean(challenge),
+    tokenReceived: Boolean(token),
+    verifyTokenPresent: Boolean(VERIFY_TOKEN),
+    tokenLength: token?.length ?? 0,
+    verifyTokenLength:
+      VERIFY_TOKEN?.length ?? 0,
+    tokensMatch:
+      Boolean(token) &&
+      Boolean(VERIFY_TOKEN) &&
+      token === VERIFY_TOKEN,
+    challengeReceived: Boolean(challenge),
   });
 
   if (
@@ -41,10 +49,6 @@ export async function GET(
       },
     });
   }
-
-  console.error(
-    "Falha na verificação do webhook WhatsApp."
-  );
 
   return new Response("Forbidden", {
     status: 403,
@@ -76,11 +80,6 @@ export async function POST(
       error
     );
 
-    /*
-     * Mesmo que o conteúdo recebido seja inválido,
-     * mantemos uma resposta controlada para evitar
-     * problemas de processamento no endpoint.
-     */
     return Response.json(
       {
         success: false,
