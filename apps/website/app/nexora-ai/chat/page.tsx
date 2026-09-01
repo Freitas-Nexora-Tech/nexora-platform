@@ -5,9 +5,13 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useSearchParams } from "next/navigation";
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type Fonte = {
   numero: number;
@@ -22,26 +26,85 @@ type Mensagem = {
 };
 
 function NexoraAIChat() {
-  const [mensagens, setMensagens] = useState<
-    Mensagem[]
-  >([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [mensagem, setMensagem] =
-    useState("");
+  const supabase = createSupabaseBrowserClient();
 
-  const [aCarregar, setACarregar] =
-    useState(false);
+  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
+  const [mensagem, setMensagem] = useState("");
+  const [aCarregar, setACarregar] = useState(false);
 
   const [conversationId, setConversationId] =
     useState<string | null>(null);
 
-  const searchParams = useSearchParams();
+  const [aiAtiva, setAiAtiva] = useState(true);
+  const [aVerificarIA, setAVerificarIA] = useState(true);
+
+  const [erroIA, setErroIA] = useState("");
 
   const conversationIdFromUrl =
     searchParams.get("conversation");
 
+  // Verificar autenticação e estado da IA
+  useEffect(() => {
+    async function verificarAcesso() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.replace("/nexora-ai/login");
+          return;
+        }
+
+        const { data: membro } = await supabase
+          .from("company_members")
+          .select("company_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!membro) {
+          router.replace("/nexora-ai/login");
+          return;
+        }
+
+        const { data: subscricao } = await supabase
+          .from("company_subscriptions")
+          .select("ai_enabled")
+          .eq("company_id", membro.company_id)
+          .maybeSingle();
+
+        const ativa =
+          subscricao?.ai_enabled ?? true;
+
+        setAiAtiva(ativa);
+
+        if (!ativa) {
+          setErroIA(
+            "A Nexora AI está temporariamente suspensa para esta empresa."
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Erro ao verificar estado da IA:",
+          error
+        );
+      } finally {
+        setAVerificarIA(false);
+      }
+    }
+
+    verificarAcesso();
+  }, [router, supabase]);
+
+  // Carregar conversa existente
   useEffect(() => {
     if (!conversationIdFromUrl) return;
+    if (aVerificarIA) return;
+    if (!aiAtiva) return;
 
     async function carregarConversa() {
       try {
@@ -51,8 +114,7 @@ function NexoraAIChat() {
           `/api/ai?conversationId=${conversationIdFromUrl}`
         );
 
-        const data =
-          await response.json();
+        const data = await response.json();
 
         if (!response.ok) {
           throw new Error(
@@ -68,9 +130,7 @@ function NexoraAIChat() {
         setMensagens(
           data.mensagens.map(
             (item: {
-              role:
-                | "user"
-                | "assistant";
+              role: "user" | "assistant";
               content: string;
             }) => ({
               role: item.role,
@@ -89,18 +149,22 @@ function NexoraAIChat() {
     }
 
     carregarConversa();
-  }, [conversationIdFromUrl]);
+  }, [
+    conversationIdFromUrl,
+    aVerificarIA,
+    aiAtiva,
+  ]);
 
   async function enviarMensagem() {
     if (
+      !aiAtiva ||
       !mensagem.trim() ||
       aCarregar
     ) {
       return;
     }
 
-    const pergunta =
-      mensagem.trim();
+    const pergunta = mensagem.trim();
 
     const novaMensagem: Mensagem = {
       role: "user",
@@ -112,17 +176,14 @@ function NexoraAIChat() {
       novaMensagem,
     ];
 
-    setMensagens(
-      conversaAtualizada
-    );
-
+    setMensagens(conversaAtualizada);
     setMensagem("");
-
     setACarregar(true);
 
     try {
-      const response =
-        await fetch("/api/ai", {
+      const response = await fetch(
+        "/api/ai",
+        {
           method: "POST",
           headers: {
             "Content-Type":
@@ -133,10 +194,32 @@ function NexoraAIChat() {
               conversaAtualizada,
             conversationId,
           }),
-        });
+        }
+      );
 
-      const data =
-        await response.json();
+      const data = await response.json();
+
+      // IA suspensa
+      if (
+        response.status === 403 &&
+        data.ai_enabled === false
+      ) {
+        setAiAtiva(false);
+
+        setErroIA(
+          "A Nexora AI está temporariamente suspensa para esta empresa."
+        );
+
+        setMensagens(
+          (mensagensAtuais) =>
+            mensagensAtuais.slice(
+              0,
+              -1
+            )
+        );
+
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -151,18 +234,15 @@ function NexoraAIChat() {
         );
       }
 
-      const respostaAI: Mensagem =
-        {
-          role: "assistant",
-          content: data.resposta,
-          fontes:
-            Array.isArray(
-              data.fontes
-            ) &&
-            data.fontes.length > 0
-              ? data.fontes
-              : undefined,
-        };
+      const respostaAI: Mensagem = {
+        role: "assistant",
+        content: data.resposta,
+        fontes:
+          Array.isArray(data.fontes) &&
+          data.fontes.length > 0
+            ? data.fontes
+            : undefined,
+      };
 
       setMensagens(
         (mensagensAtuais) => [
@@ -173,12 +253,11 @@ function NexoraAIChat() {
     } catch (error) {
       console.error(error);
 
-      const mensagemErro: Mensagem =
-        {
-          role: "assistant",
-          content:
-            "Desculpe, ocorreu um problema ao comunicar com a Nexora AI. Tente novamente.",
-        };
+      const mensagemErro: Mensagem = {
+        role: "assistant",
+        content:
+          "Desculpe, ocorreu um problema ao comunicar com a Nexora AI. Tente novamente.",
+      };
 
       setMensagens(
         (mensagensAtuais) => [
@@ -200,14 +279,16 @@ function NexoraAIChat() {
   }
 
   function novaConversa() {
+    if (!aiAtiva) return;
+
     setMensagens([]);
     setMensagem("");
     setConversationId(null);
+
+    router.replace("/nexora-ai/chat");
   }
 
-  function obterNomeFonte(
-    url: string
-  ) {
+  function obterNomeFonte(url: string) {
     try {
       return new URL(url)
         .hostname.replace(
@@ -219,11 +300,37 @@ function NexoraAIChat() {
     }
   }
 
+  if (aVerificarIA) {
+    return (
+      <section className="flex min-h-[75vh] items-center justify-center px-6 py-16">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5 text-sm text-cyan-400">
+          A verificar o estado da Nexora AI...
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative min-h-[75vh] overflow-hidden px-6 py-16">
       <div className="absolute left-1/2 top-20 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
 
       <div className="relative z-10 mx-auto flex max-w-5xl flex-col items-center">
+
+        {/* Voltar */}
+
+        <div className="mb-6 w-full">
+          <button
+            type="button"
+            onClick={() =>
+              router.push(
+                "/nexora-ai/dashboard"
+              )
+            }
+            className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-400"
+          >
+            ← Voltar ao Dashboard
+          </button>
+        </div>
 
         {/* Cabeçalho */}
 
@@ -245,26 +352,50 @@ function NexoraAIChat() {
           </p>
         </div>
 
+        {/* Estado suspenso */}
+
+        {!aiAtiva && (
+          <div className="mt-8 w-full rounded-2xl border border-red-400/20 bg-red-400/5 p-5 text-center">
+            <p className="text-lg font-bold text-red-400">
+              🔒 Nexora AI suspensa
+            </p>
+
+            <p className="mt-2 text-sm text-slate-400">
+              A utilização da inteligência artificial
+              está temporariamente indisponível.
+            </p>
+          </div>
+        )}
+
         {/* Chat */}
 
-        <div className="mt-12 w-full overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/80 shadow-2xl">
+        <div className="mt-8 w-full overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/80 shadow-2xl">
 
           {/* Barra superior */}
 
           <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
 
             <div className="flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+
+              <div
+                className={
+                  aiAtiva
+                    ? "h-3 w-3 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50"
+                    : "h-3 w-3 rounded-full bg-red-400"
+                }
+              />
 
               <span className="text-sm font-medium text-slate-300">
                 Nexora AI
               </span>
+
             </div>
 
             <button
               type="button"
               onClick={novaConversa}
-              className="text-xs text-slate-500 transition hover:text-cyan-400"
+              disabled={!aiAtiva}
+              className="text-xs text-slate-500 transition hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Nova conversa
             </button>
@@ -275,138 +406,165 @@ function NexoraAIChat() {
 
           <div className="min-h-[350px] space-y-5 p-6">
 
-            {mensagens.length === 0 && (
-              <div className="max-w-2xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-950 p-5">
+            {!aiAtiva ? (
+              <div className="mx-auto max-w-2xl rounded-2xl border border-red-400/20 bg-slate-950 p-6 text-center">
 
-                <p className="text-sm font-semibold text-cyan-400">
-                  Nexora AI
-                </p>
+                <div className="text-4xl">
+                  🔒
+                </div>
 
-                <p className="mt-2 leading-7 text-slate-300">
-                  Olá! 👋 Sou a Nexora AI.
+                <p className="mt-4 text-lg font-bold text-red-400">
+                  Nexora AI temporariamente suspensa
                 </p>
 
                 <p className="mt-2 leading-7 text-slate-400">
-                  Estou aqui para ajudar a sua empresa a encontrar
-                  soluções, automatizar processos e utilizar a
-                  Inteligência Artificial de forma mais eficiente.
+                  A inteligência artificial desta empresa
+                  encontra-se temporariamente indisponível.
+                </p>
+
+                <p className="mt-4 text-sm text-slate-600">
+                  Contacte o administrador da conta para
+                  mais informações.
                 </p>
 
               </div>
-            )}
+            ) : (
+              <>
+                {mensagens.length === 0 && (
+                  <div className="max-w-2xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-950 p-5">
 
-            {/* Histórico */}
+                    <p className="text-sm font-semibold text-cyan-400">
+                      Nexora AI
+                    </p>
 
-            {mensagens.map(
-              (item, index) => (
-                <div
-                  key={`${item.role}-${index}`}
-                  className={
-                    item.role === "user"
-                      ? "ml-auto max-w-3xl rounded-2xl rounded-tr-sm bg-cyan-500 p-5 text-slate-950"
-                      : "max-w-3xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-950 p-5"
-                  }
-                >
+                    <p className="mt-2 leading-7 text-slate-300">
+                      Olá! 👋 Sou a Nexora AI.
+                    </p>
 
-                  <p
-                    className={
-                      item.role === "user"
-                        ? "text-sm font-bold"
-                        : "text-sm font-semibold text-cyan-400"
-                    }
-                  >
-                    {item.role === "user"
-                      ? "Você"
-                      : "Nexora AI"}
-                  </p>
+                    <p className="mt-2 leading-7 text-slate-400">
+                      Estou aqui para ajudar a sua empresa
+                      a encontrar soluções, automatizar
+                      processos e utilizar a Inteligência
+                      Artificial de forma mais eficiente.
+                    </p>
 
-                  <p className="mt-2 whitespace-pre-wrap leading-7">
-                    {item.content}
-                  </p>
+                  </div>
+                )}
 
-                  {/* Fontes */}
+                {/* Histórico */}
 
-                  {item.role ===
-                    "assistant" &&
-                    item.fontes &&
-                    item.fontes.length >
-                      0 && (
-                      <div className="mt-6 border-t border-slate-800 pt-5">
+                {mensagens.map(
+                  (item, index) => (
+                    <div
+                      key={`${item.role}-${index}`}
+                      className={
+                        item.role === "user"
+                          ? "ml-auto max-w-3xl rounded-2xl rounded-tr-sm bg-cyan-500 p-5 text-slate-950"
+                          : "max-w-3xl rounded-2xl rounded-tl-sm border border-slate-800 bg-slate-950 p-5"
+                      }
+                    >
 
-                        <div className="mb-3 flex items-center gap-2">
+                      <p
+                        className={
+                          item.role === "user"
+                            ? "text-sm font-bold"
+                            : "text-sm font-semibold text-cyan-400"
+                        }
+                      >
+                        {item.role === "user"
+                          ? "Você"
+                          : "Nexora AI"}
+                      </p>
 
-                          <span className="text-lg">
-                            🔎
-                          </span>
+                      <p className="mt-2 whitespace-pre-wrap leading-7">
+                        {item.content}
+                      </p>
 
-                          <p className="text-sm font-semibold text-slate-300">
-                            Fontes consultadas
-                          </p>
+                      {/* Fontes */}
 
-                        </div>
+                      {item.role ===
+                        "assistant" &&
+                        item.fontes &&
+                        item.fontes.length >
+                          0 && (
+                          <div className="mt-6 border-t border-slate-800 pt-5">
 
-                        <div className="space-y-3">
+                            <div className="mb-3 flex items-center gap-2">
 
-                          {item.fontes.map(
-                            (fonte) => (
-                              <a
-                                key={`${fonte.numero}-${fonte.url}`}
-                                href={fonte.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group block rounded-xl border border-slate-800 bg-slate-900 p-4 transition hover:border-cyan-400/40 hover:bg-slate-900/80"
-                              >
+                              <span className="text-lg">
+                                🔎
+                              </span>
 
-                                <div className="flex items-start gap-3">
+                              <p className="text-sm font-semibold text-slate-300">
+                                Fontes consultadas
+                              </p>
 
-                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-sm font-bold text-cyan-400">
-                                    {fonte.numero}
-                                  </div>
+                            </div>
 
-                                  <div className="min-w-0 flex-1">
+                            <div className="space-y-3">
 
-                                    <p className="font-medium text-slate-200 transition group-hover:text-cyan-400">
-                                      {fonte.titulo ||
-                                        "Fonte consultada"}
-                                    </p>
+                              {item.fontes.map(
+                                (fonte) => (
+                                  <a
+                                    key={`${fonte.numero}-${fonte.url}`}
+                                    href={fonte.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group block rounded-xl border border-slate-800 bg-slate-900 p-4 transition hover:border-cyan-400/40 hover:bg-slate-900/80"
+                                  >
 
-                                    <p className="mt-1 truncate text-xs text-slate-500">
-                                      {obterNomeFonte(
-                                        fonte.url
-                                      )}
-                                    </p>
+                                    <div className="flex items-start gap-3">
 
-                                    <p className="mt-2 text-xs text-cyan-400">
-                                      Abrir fonte ↗
-                                    </p>
+                                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-sm font-bold text-cyan-400">
+                                        {fonte.numero}
+                                      </div>
 
-                                  </div>
+                                      <div className="min-w-0 flex-1">
 
-                                </div>
+                                        <p className="font-medium text-slate-200 transition group-hover:text-cyan-400">
+                                          {fonte.titulo ||
+                                            "Fonte consultada"}
+                                        </p>
 
-                              </a>
-                            )
-                          )}
+                                        <p className="mt-1 truncate text-xs text-slate-500">
+                                          {obterNomeFonte(
+                                            fonte.url
+                                          )}
+                                        </p>
 
-                        </div>
+                                        <p className="mt-2 text-xs text-cyan-400">
+                                          Abrir fonte ↗
+                                        </p>
 
-                      </div>
-                    )}
+                                      </div>
 
-                </div>
-              )
-            )}
+                                    </div>
 
-            {/* Carregamento */}
+                                  </a>
+                                )
+                              )}
 
-            {aCarregar && (
-              <div className="max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 p-5">
+                            </div>
 
-                <p className="text-sm text-cyan-400">
-                  Nexora AI está a pensar...
-                </p>
+                          </div>
+                        )}
 
-              </div>
+                    </div>
+                  )
+                )}
+
+                {/* Carregamento */}
+
+                {aCarregar && (
+                  <div className="max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 p-5">
+
+                    <p className="text-sm text-cyan-400">
+                      Nexora AI está a pensar...
+                    </p>
+
+                  </div>
+                )}
+              </>
             )}
 
           </div>
@@ -415,7 +573,19 @@ function NexoraAIChat() {
 
           <div className="border-t border-slate-800 p-5">
 
-            <div className="flex gap-3 rounded-2xl border border-slate-700 bg-slate-950 p-2 focus-within:border-cyan-400/60">
+            {erroIA && !aiAtiva && (
+              <p className="mb-4 text-center text-sm text-red-400">
+                🔒 Nexora AI suspensa pelo administrador.
+              </p>
+            )}
+
+            <div
+              className={
+                aiAtiva
+                  ? "flex gap-3 rounded-2xl border border-slate-700 bg-slate-950 p-2 focus-within:border-cyan-400/60"
+                  : "flex gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-2 opacity-50"
+              }
+            >
 
               <input
                 type="text"
@@ -426,19 +596,27 @@ function NexoraAIChat() {
                   )
                 }
                 onKeyDown={handleKeyDown}
-                placeholder="Escreva a sua mensagem..."
-                disabled={aCarregar}
-                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                placeholder={
+                  aiAtiva
+                    ? "Escreva a sua mensagem..."
+                    : "Nexora AI temporariamente suspensa"
+                }
+                disabled={
+                  !aiAtiva ||
+                  aCarregar
+                }
+                className="min-w-0 flex-1 bg-transparent px-4 py-3 text-white outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
               />
 
               <button
                 type="button"
                 onClick={enviarMensagem}
                 disabled={
+                  !aiAtiva ||
                   aCarregar ||
                   !mensagem.trim()
                 }
-                className="rounded-xl bg-cyan-500 px-6 py-3 font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-cyan-500 px-6 py-3 font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 {aCarregar
                   ? "A responder..."

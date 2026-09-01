@@ -26,21 +26,60 @@ export default function NexoraAILoginPage() {
     setMensagem("");
     setACarregar(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setACarregar(false);
-
     if (error) {
+      setACarregar(false);
       setErro("Email ou palavra-passe incorretos.");
       return;
     }
 
-    await supabase.auth.getUser();
+    const user = data.user;
 
-    router.replace("/nexora-ai/dashboard");
+    if (!user) {
+      setACarregar(false);
+      setErro("Não foi possível identificar o utilizador.");
+      return;
+    }
+
+    // Verificar se o utilizador é administrador da Nexora
+    const { data: admin, error: adminError } = await supabase
+      .from("nexora_admins")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    // Se for administrador Nexora
+    if (!adminError && admin) {
+      setACarregar(false);
+
+      router.replace("/nexora-admin");
+      router.refresh();
+      return;
+    }
+
+    // Verificar se o cliente já tem uma empresa
+    const { data: membro, error: membroError } = await supabase
+      .from("company_members")
+      .select("company_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    setACarregar(false);
+
+    // Se já existe uma associação válida
+    if (!membroError && membro) {
+      router.replace("/nexora-ai/dashboard");
+      router.refresh();
+      return;
+    }
+
+    // Cliente novo sem empresa
+    router.replace("/nexora-ai/setup");
     router.refresh();
   }
 
@@ -58,6 +97,9 @@ export default function NexoraAILoginPage() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+       emailRedirectTo: `${window.location.origin}/nexora-ai/auth`,
+      },
     });
 
     setACarregar(false);

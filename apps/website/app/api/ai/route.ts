@@ -179,6 +179,42 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+        // Estado da Nexora AI
+    const {
+      data: subscricao,
+      error: subscricaoError,
+    } = await supabase
+      .from("company_subscriptions")
+      .select("ai_enabled")
+      .eq("company_id", empresa.id)
+      .maybeSingle();
+
+    if (subscricaoError) {
+      console.error(
+        "Erro ao verificar estado da IA:",
+        subscricaoError
+      );
+
+      return Response.json(
+        {
+          error:
+            "Não foi possível verificar o estado da Nexora AI.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // IA suspensa pelo administrador
+    if (subscricao && subscricao.ai_enabled === false) {
+      return Response.json(
+        {
+          error:
+            "A Nexora AI está temporariamente suspensa para esta empresa. Contacte o administrador da conta.",
+          ai_enabled: false,
+        },
+        { status: 403 }
+      );
+    }
 
     // Conhecimento da empresa
     const {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -14,6 +15,8 @@ type Documento = {
 };
 
 export default function NexoraAIDocumentsPage() {
+  const router = useRouter();
+
   const [ficheiro, setFicheiro] =
     useState<File | null>(null);
 
@@ -323,6 +326,22 @@ export default function NexoraAIDocumentsPage() {
         <div className="absolute left-1/2 top-20 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-3xl" />
 
         <div className="relative z-10 mx-auto max-w-5xl">
+
+          {/* Voltar ao Dashboard */}
+
+          <div className="mb-8">
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  "/nexora-ai/dashboard"
+                )
+              }
+              className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-400"
+            >
+              ← Voltar ao Dashboard
+            </button>
+          </div>
 
           {/* Cabeçalho */}
 

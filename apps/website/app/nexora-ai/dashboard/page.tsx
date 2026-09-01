@@ -4,8 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export default async function NexoraAIDashboardPage() {
-  const supabase =
-    await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
 
   const {
     data: { user },
@@ -44,47 +43,41 @@ export default async function NexoraAIDashboardPage() {
     redirect("/nexora-ai/login");
   }
 
+  // Estado da Nexora AI
+  const { data: subscricao } = await supabase
+    .from("company_subscriptions")
+    .select("ai_enabled")
+    .eq("company_id", empresa.id)
+    .maybeSingle();
+
+  const aiAtiva = subscricao?.ai_enabled ?? true;
+
   // Contagem do conhecimento
-  const {
-    count: conhecimentoCount,
-  } = await supabase
+  const { count: conhecimentoCount } = await supabase
     .from("company_knowledge")
     .select("id", {
       count: "exact",
       head: true,
     })
-    .eq(
-      "company_id",
-      empresa.id
-    );
+    .eq("company_id", empresa.id);
 
   // Contagem das conversas
-  const {
-    count: conversasCount,
-  } = await supabase
+  const { count: conversasCount } = await supabase
     .from("conversations")
     .select("id", {
       count: "exact",
       head: true,
     })
-    .eq(
-      "company_id",
-      empresa.id
-    );
+    .eq("company_id", empresa.id);
 
   // Contagem dos documentos
-  const {
-    count: documentosCount,
-  } = await supabase
+  const { count: documentosCount } = await supabase
     .from("company_documents")
     .select("id", {
       count: "exact",
       head: true,
     })
-    .eq(
-      "company_id",
-      empresa.id
-    );
+    .eq("company_id", empresa.id);
 
   return (
     <main className="min-h-screen bg-slate-950 text-white">
@@ -109,8 +102,7 @@ export default async function NexoraAIDashboardPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-slate-400">
-              Bem-vindo à área de gestão da
-              sua empresa.
+              Bem-vindo à área de gestão da sua empresa.
             </p>
           </div>
 
@@ -135,14 +127,26 @@ export default async function NexoraAIDashboardPage() {
                 )}
               </div>
 
-              <div className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-4">
+              <div
+                className={
+                  aiAtiva
+                    ? "shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-4"
+                    : "shrink-0 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4"
+                }
+              >
                 <p className="text-xs uppercase tracking-wider text-slate-500">
                   Estado da plataforma
                 </p>
 
-                <p className="mt-1 font-bold text-emerald-400">
-                  ● Nexora AI Online
-                </p>
+                {aiAtiva ? (
+                  <p className="mt-1 font-bold text-emerald-400">
+                    ● Nexora AI Online
+                  </p>
+                ) : (
+                  <p className="mt-1 font-bold text-red-400">
+                    ● Nexora AI Suspensa
+                  </p>
+                )}
               </div>
 
             </div>
@@ -156,9 +160,7 @@ export default async function NexoraAIDashboardPage() {
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">
-                  🧠
-                </div>
+                <div className="text-3xl">🧠</div>
 
                 <span className="text-xs text-slate-600">
                   Empresa
@@ -180,11 +182,15 @@ export default async function NexoraAIDashboardPage() {
 
             {/* Nexora AI */}
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-emerald-400/40">
+            <div
+              className={
+                aiAtiva
+                  ? "rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-emerald-400/40"
+                  : "rounded-2xl border border-red-400/20 bg-slate-900 p-6 transition"
+              }
+            >
               <div className="flex items-center justify-between">
-                <div className="text-3xl">
-                  🤖
-                </div>
+                <div className="text-3xl">🤖</div>
 
                 <span className="text-xs text-slate-600">
                   Sistema
@@ -195,22 +201,34 @@ export default async function NexoraAIDashboardPage() {
                 Nexora AI
               </p>
 
-              <p className="mt-1 text-3xl font-bold text-emerald-400">
-                Online
-              </p>
+              {aiAtiva ? (
+                <>
+                  <p className="mt-1 text-3xl font-bold text-emerald-400">
+                    Online
+                  </p>
 
-              <p className="mt-2 text-sm text-slate-500">
-                IA ativa
-              </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    IA ativa
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-3xl font-bold text-red-400">
+                    Suspensa
+                  </p>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    IA temporariamente indisponível
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Conta */}
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">
-                  🔐
-                </div>
+                <div className="text-3xl">🔐</div>
 
                 <span className="text-xs text-slate-600">
                   Conta
@@ -234,9 +252,7 @@ export default async function NexoraAIDashboardPage() {
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">
-                  💬
-                </div>
+                <div className="text-3xl">💬</div>
 
                 <span className="text-xs text-slate-600">
                   IA
@@ -260,9 +276,7 @@ export default async function NexoraAIDashboardPage() {
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
               <div className="flex items-center justify-between">
-                <div className="text-3xl">
-                  📄
-                </div>
+                <div className="text-3xl">📄</div>
 
                 <span className="text-xs text-slate-600">
                   Base
@@ -294,8 +308,7 @@ export default async function NexoraAIDashboardPage() {
               </h2>
 
               <p className="mt-2 text-slate-500">
-                Aceda rapidamente às principais
-                ferramentas da sua empresa.
+                Aceda rapidamente às principais ferramentas da sua empresa.
               </p>
             </div>
 
@@ -303,27 +316,42 @@ export default async function NexoraAIDashboardPage() {
 
               {/* Chat */}
 
-              <a
-                href="/nexora-ai/chat"
-                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-              >
-                <div className="text-3xl">
-                  💬
+              {aiAtiva ? (
+                <a
+                  href="/nexora-ai/chat"
+                  className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                >
+                  <div className="text-3xl">💬</div>
+
+                  <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                    Falar com a Nexora AI
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    Converse com o assistente inteligente da sua empresa.
+                  </p>
+
+                  <span className="mt-5 inline-block font-semibold text-cyan-400">
+                    Abrir Chat →
+                  </span>
+                </a>
+              ) : (
+                <div className="rounded-3xl border border-red-400/20 bg-slate-900 p-7 opacity-75">
+                  <div className="text-3xl">💬</div>
+
+                  <h2 className="mt-4 text-xl font-bold text-slate-400">
+                    Falar com a Nexora AI
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    A inteligência artificial está temporariamente indisponível.
+                  </p>
+
+                  <p className="mt-5 text-sm font-semibold text-red-400">
+                    🔒 Nexora AI suspensa
+                  </p>
                 </div>
-
-                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                  Falar com a Nexora AI
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Converse com o assistente
-                  inteligente da sua empresa.
-                </p>
-
-                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                  Abrir Chat →
-                </span>
-              </a>
+              )}
 
               {/* Conhecimento */}
 
@@ -331,17 +359,14 @@ export default async function NexoraAIDashboardPage() {
                 href="/nexora-ai/knowledge"
                 className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
               >
-                <div className="text-3xl">
-                  🧠
-                </div>
+                <div className="text-3xl">🧠</div>
 
                 <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
                   Conhecimento da empresa
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Gerir as informações que a
-                  Nexora AI utiliza.
+                  Gerir as informações que a Nexora AI utiliza.
                 </p>
 
                 <span className="mt-5 inline-block font-semibold text-cyan-400">
@@ -355,17 +380,14 @@ export default async function NexoraAIDashboardPage() {
                 href="/nexora-ai/documents"
                 className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
               >
-                <div className="text-3xl">
-                  📄
-                </div>
+                <div className="text-3xl">📄</div>
 
                 <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
                   Documentos
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Carregar, processar e gerir
-                  os documentos da empresa.
+                  Carregar, processar e gerir os documentos da empresa.
                 </p>
 
                 <span className="mt-5 inline-block font-semibold text-cyan-400">
@@ -379,17 +401,14 @@ export default async function NexoraAIDashboardPage() {
                 href="/nexora-ai/conversations"
                 className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
               >
-                <div className="text-3xl">
-                  💬
-                </div>
+                <div className="text-3xl">💬</div>
 
                 <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
                   Histórico de conversas
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Consulte e continue conversas
-                  anteriores com a Nexora AI.
+                  Consulte e continue conversas anteriores com a Nexora AI.
                 </p>
 
                 <span className="mt-5 inline-block font-semibold text-cyan-400">
@@ -411,23 +430,26 @@ export default async function NexoraAIDashboardPage() {
                 </p>
 
                 <h2 className="mt-2 text-xl font-bold">
-                  A sua Nexora AI está pronta.
+                  {aiAtiva
+                    ? "A sua Nexora AI está pronta."
+                    : "A Nexora AI está temporariamente suspensa."}
                 </h2>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  O sistema já permite gerir
-                  conhecimento, documentos,
-                  conversas e utilizar ferramentas
-                  inteligentes através da Nexora AI.
+                  {aiAtiva
+                    ? "O sistema já permite gerir conhecimento, documentos, conversas e utilizar ferramentas inteligentes através da Nexora AI."
+                    : "O acesso à inteligência artificial desta empresa está temporariamente indisponível. Contacte o administrador da conta para mais informações."}
                 </p>
               </div>
 
-              <a
-                href="/nexora-ai/chat"
-                className="shrink-0 rounded-xl bg-cyan-500 px-6 py-3 text-center font-bold text-slate-950 transition hover:bg-cyan-400"
-              >
-                Começar conversa
-              </a>
+              {aiAtiva && (
+                <a
+                  href="/nexora-ai/chat"
+                  className="shrink-0 rounded-xl bg-cyan-500 px-6 py-3 text-center font-bold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  Começar conversa
+                </a>
+              )}
 
             </div>
           </div>

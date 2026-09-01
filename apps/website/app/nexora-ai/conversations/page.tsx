@@ -42,6 +42,19 @@ export default async function ConversationsPage() {
       <section className="px-6 py-12">
         <div className="mx-auto max-w-5xl">
 
+          {/* Voltar ao Dashboard */}
+
+          <div className="mb-8">
+            <a
+              href="/nexora-ai/dashboard"
+              className="inline-flex items-center rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-400 transition hover:border-cyan-400/50 hover:text-cyan-400"
+            >
+              ← Voltar ao Dashboard
+            </a>
+          </div>
+
+          {/* Cabeçalho */}
+
           <div className="mb-10">
             <span className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
               Nexora AI
@@ -56,9 +69,14 @@ export default async function ConversationsPage() {
             </p>
           </div>
 
+          {/* Conversas */}
+
           {(!conversas || conversas.length === 0) ? (
             <div className="rounded-3xl border border-slate-800 bg-slate-900 p-10 text-center">
-              <div className="text-5xl">💬</div>
+
+              <div className="text-5xl">
+                💬
+              </div>
 
               <h2 className="mt-5 text-2xl font-bold">
                 Ainda não existem conversas
@@ -74,9 +92,11 @@ export default async function ConversationsPage() {
               >
                 Abrir Chat
               </a>
+
             </div>
           ) : (
             <div className="space-y-4">
+
               {conversas.map((conversa) => (
                 <a
                   key={conversa.id}
@@ -86,6 +106,7 @@ export default async function ConversationsPage() {
                   <div className="flex items-center justify-between gap-6">
 
                     <div className="min-w-0">
+
                       <h2 className="truncate text-lg font-bold">
                         {conversa.title}
                       </h2>
@@ -95,6 +116,7 @@ export default async function ConversationsPage() {
                           conversa.updated_at
                         ).toLocaleString("pt-PT")}
                       </p>
+
                     </div>
 
                     <span className="shrink-0 text-cyan-400">
@@ -104,6 +126,7 @@ export default async function ConversationsPage() {
                   </div>
                 </a>
               ))}
+
             </div>
           )}
 
