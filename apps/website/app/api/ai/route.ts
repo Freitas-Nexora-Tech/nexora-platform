@@ -9,6 +9,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const NEXORA_BOOKING_PRODUCT_ID =
+  "165ea020-af05-447a-a21e-1ef91f88b68e";
+
+const BOOKING_AI_CAMPAIGN_CODE =
+  "BOOKING-AI-2M";
+
 const instrucoesNexora = (
   nomeEmpresa: string,
   descricaoEmpresa: string,
@@ -179,7 +185,8 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
-        // Estado da Nexora AI
+
+    // Estado da Nexora AI
     const {
       data: subscricao,
       error: subscricaoError,
@@ -204,13 +211,99 @@ export async function POST(request: Request) {
       );
     }
 
-    // IA suspensa pelo administrador
+    // IA suspensa pelo administrador.
+    // Esta verificação tem SEMPRE prioridade,
+    // incluindo empresas com campanha Booking.
     if (subscricao && subscricao.ai_enabled === false) {
       return Response.json(
         {
           error:
             "A Nexora AI está temporariamente suspensa para esta empresa. Contacte o administrador da conta.",
           ai_enabled: false,
+        },
+        { status: 403 }
+      );
+    }
+
+    // Verificar campanha Nexora Booking + Nexora AI
+    const {
+      data: campanhaBooking,
+      error: campanhaError,
+    } = await supabase
+      .from("product_subscriptions")
+      .select(
+        "id, product_id, campaign_code, campaign_started_at, campaign_ends_at, status, ai_suspended"
+      )
+      .eq("company_id", empresa.id)
+      .eq(
+        "product_id",
+        NEXORA_BOOKING_PRODUCT_ID
+      )
+      .eq(
+        "campaign_code",
+        BOOKING_AI_CAMPAIGN_CODE
+      )
+      .in("status", ["trial", "active"])
+      .maybeSingle();
+
+    if (campanhaError) {
+      console.error(
+        "Erro ao verificar campanha Booking:",
+        campanhaError
+      );
+
+      return Response.json(
+        {
+          error:
+            "Não foi possível verificar os benefícios do Nexora Booking.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const agora = new Date();
+
+    const campanhaAIAtiva =
+      campanhaBooking &&
+      campanhaBooking.campaign_started_at &&
+      campanhaBooking.campaign_ends_at &&
+      new Date(
+        campanhaBooking.campaign_started_at
+      ) <= agora &&
+      new Date(
+        campanhaBooking.campaign_ends_at
+      ) >= agora;
+
+    const aiDisponivelPorCampanha =
+      Boolean(
+        campanhaAIAtiva &&
+        campanhaBooking?.ai_suspended !== true
+      );
+
+    /*
+     * REGRA DE ACESSO À NEXORA AI
+     *
+     * 1. Uma subscrição AI normal permite acesso.
+     * 2. Uma campanha Booking válida permite acesso.
+     * 3. Uma subscrição AI suspensa bloqueia sempre.
+     * 4. Sem subscrição AI e sem campanha válida,
+     *    o acesso é bloqueado.
+     */
+
+    const temSubscricaoAI =
+      Boolean(subscricao);
+
+    const aiDisponivel =
+      temSubscricaoAI ||
+      aiDisponivelPorCampanha;
+
+    if (!aiDisponivel) {
+      return Response.json(
+        {
+          error:
+            "A Nexora AI não está disponível para esta empresa. É necessário ter uma subscrição Nexora AI ativa ou beneficiar de uma campanha válida.",
+          ai_enabled: false,
+          ai_via_booking_campaign: false,
         },
         { status: 403 }
       );
@@ -244,18 +337,18 @@ export async function POST(request: Request) {
 
     const contextoEmpresa =
       conhecimentos &&
-      conhecimentos.length > 0
+        conhecimentos.length > 0
         ? conhecimentos
-            .map(
-              (conhecimento) => `
+          .map(
+            (conhecimento) => `
 Empresa: ${conhecimento.empresa || ""}
 Descrição: ${conhecimento.descricao || ""}
 Serviços: ${conhecimento.servicos || ""}
 Produtos: ${conhecimento.produtos || ""}
 Informações adicionais: ${conhecimento.informacoes || ""}
 `
-            )
-            .join("\n")
+          )
+          .join("\n")
         : "Não existe conhecimento registado para esta empresa.";
 
     // Documentos da empresa
@@ -291,18 +384,18 @@ Informações adicionais: ${conhecimento.informacoes || ""}
 
     const contextoDocumentos =
       documentos &&
-      documentos.length > 0
+        documentos.length > 0
         ? documentos
-            .map(
-              (documento) => `
+          .map(
+            (documento) => `
 === DOCUMENTO: ${documento.file_name} ===
 
 ${documento.extracted_text || ""}
 
 === FIM DO DOCUMENTO ===
 `
-            )
-            .join("\n")
+          )
+          .join("\n")
         : "Não existem documentos com texto extraído para esta empresa.";
 
     // Criar ou recuperar conversa
@@ -322,9 +415,9 @@ ${documento.extracted_text || ""}
       const titulo =
         primeiraPergunta.length > 60
           ? `${primeiraPergunta.substring(
-              0,
-              60
-            )}...`
+            0,
+            60
+          )}...`
           : primeiraPergunta;
 
       const {
@@ -399,8 +492,8 @@ ${documento.extracted_text || ""}
       mensagens.map(
         (mensagem: {
           role:
-            | "user"
-            | "assistant";
+          | "user"
+          | "assistant";
           content: string;
         }) => ({
           role: mensagem.role,
@@ -485,10 +578,10 @@ ${documento.extracted_text || ""}
           // Guardar fontes reais da pesquisa
           if (
             chamada.name ===
-              "web_search" &&
+            "web_search" &&
             resultado &&
             typeof resultado ===
-              "object"
+            "object"
           ) {
             const resultadoPesquisa =
               resultado as {
@@ -548,7 +641,7 @@ ${documento.extracted_text || ""}
             instrucoesNexora(
               empresa.name,
               empresa.description ||
-                "",
+              "",
               contextoEmpresa,
               contextoDocumentos
             ),
@@ -627,6 +720,12 @@ ${documento.extracted_text || ""}
 
       fontes:
         fontesUnicas,
+
+      ai_enabled:
+        true,
+
+      ai_via_booking_campaign:
+        aiDisponivelPorCampanha,
     });
   } catch (error) {
     console.error(

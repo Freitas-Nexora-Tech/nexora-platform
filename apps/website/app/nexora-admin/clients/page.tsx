@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 
 type Cliente = {
   id: string;
@@ -15,18 +16,18 @@ type Subscricao = {
   billing_cycle: string;
   current_period_end: string | null;
   plan_id: string;
+  ai_enabled: boolean;
   plans:
-    | {
-        name: string;
-        slug: string;
-      }
-    | {
-        name: string;
-        slug: string;
-      }[]
-    | null;
+  | {
+    name: string;
+    slug: string;
+  }
+  | {
+    name: string;
+    slug: string;
+  }[]
+  | null;
 };
-
 export default async function NexoraAdminClientsPage() {
   const supabase = await createSupabaseServerClient();
 
@@ -55,6 +56,7 @@ export default async function NexoraAdminClientsPage() {
   if (adminError || !admin) {
     redirect("/nexora-ai/dashboard");
   }
+  const supabaseAdmin = createSupabaseAdminClient();
 
   // ─────────────────────────────────────────
   // 3. Buscar empresas
@@ -101,6 +103,7 @@ export default async function NexoraAdminClientsPage() {
       billing_cycle,
       current_period_end,
       plan_id,
+      ai_enabled,
       plans (
         name,
         slug
@@ -108,6 +111,38 @@ export default async function NexoraAdminClientsPage() {
     `);
 
   const listaSubscricoes = (subscricoes ?? []) as unknown as Subscricao[];
+  // ─────────────────────────────────────────
+  // Subscrições Booking com campanha Nexora AI
+  // ─────────────────────────────────────────
+
+  const NEXORA_BOOKING_PRODUCT_ID =
+    "165ea020-af05-447a-a21e-1ef91f88b68e";
+
+  const BOOKING_AI_CAMPAIGN_CODE =
+    "BOOKING-AI-2M";
+
+  const { data: campanhasBooking } = await supabaseAdmin
+    .from("product_subscriptions")
+    .select(`
+    company_id,
+    status,
+    ai_suspended,
+    campaign_started_at,
+    campaign_ends_at
+  `)
+    .eq("product_id", NEXORA_BOOKING_PRODUCT_ID)
+    .eq("campaign_code", BOOKING_AI_CAMPAIGN_CODE)
+    .in("status", ["trial", "active"]);
+
+  const agora = new Date();
+
+  const campanhasAI = (campanhasBooking ?? []).filter(
+    (campanha) =>
+      campanha.campaign_started_at &&
+      campanha.campaign_ends_at &&
+      new Date(campanha.campaign_started_at) <= agora &&
+      new Date(campanha.campaign_ends_at) >= agora
+  );
 
   // ─────────────────────────────────────────
   // 5. Buscar configurações de IA
@@ -296,7 +331,12 @@ export default async function NexoraAdminClientsPage() {
               <p className="mt-2 text-3xl font-bold text-emerald-400">
                 {
                   listaSubscricoes.filter(
-                    (item) => item.status === "active"
+                    (item) =>
+                      item.status === "active" &&
+                      item.ai_enabled !== false
+                  ).length +
+                  campanhasAI.filter(
+                    (campanha) => campanha.ai_suspended !== true
                   ).length
                 }
               </p>
@@ -324,7 +364,12 @@ export default async function NexoraAdminClientsPage() {
               <p className="mt-2 text-3xl font-bold text-red-400">
                 {
                   listaSubscricoes.filter(
-                    (item) => item.status === "suspended"
+                    (item) =>
+                      item.status === "suspended" ||
+                      item.ai_enabled === false
+                  ).length +
+                  campanhasAI.filter(
+                    (campanha) => campanha.ai_suspended === true
                   ).length
                 }
               </p>
@@ -481,7 +526,7 @@ export default async function NexoraAdminClientsPage() {
                           <p className="mt-1 text-sm text-slate-400">
                             {formatarData(
                               subscricao?.current_period_end ??
-                                null
+                              null
                             )}
                           </p>
 

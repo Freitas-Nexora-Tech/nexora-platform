@@ -79,32 +79,84 @@ export default async function NexoraAdminClientPage({
   const { data: subscricao } = await supabase
     .from("company_subscriptions")
     .select(`
+    id,
+    status,
+    billing_cycle,
+    ai_enabled,
+    current_period_start,
+    current_period_end,
+    trial_ends_at,
+    cancelled_at,
+    plan_id,
+    plans (
       id,
-      status,
-      billing_cycle,
-      ai_enabled,
-      current_period_start,
-      current_period_end,
-      trial_ends_at,
-      cancelled_at,
-      plan_id,
-      plans (
-        id,
-        name,
-        slug,
-        description,
-        price_monthly,
-        price_yearly,
-        currency,
-        max_messages,
-        max_documents,
-        max_storage_mb,
-        max_users,
-        features
-      )
-    `)
+      name,
+      slug,
+      description,
+      price_monthly,
+      price_yearly,
+      currency,
+      max_messages,
+      max_documents,
+      max_storage_mb,
+      max_users,
+      features
+    )
+  `)
     .eq("company_id", id)
     .maybeSingle();
+
+  // Campanha Nexora Booking + Nexora AI
+  const NEXORA_BOOKING_PRODUCT_ID =
+    "165ea020-af05-447a-a21e-1ef91f88b68e";
+
+  const BOOKING_AI_CAMPAIGN_CODE =
+    "BOOKING-AI-2M";
+
+  const { data: campanhaBooking } = await supabase
+    .from("product_subscriptions")
+    .select(`
+    id,
+    product_id,
+    campaign_code,
+    status,
+    ai_suspended,
+    campaign_started_at,
+    campaign_ends_at
+  `)
+    .eq("company_id", id)
+    .eq("product_id", NEXORA_BOOKING_PRODUCT_ID)
+    .eq("campaign_code", BOOKING_AI_CAMPAIGN_CODE)
+    .in("status", ["trial", "active"])
+    .maybeSingle();
+
+  const agora = new Date();
+
+  const campanhaAIAtiva =
+    Boolean(
+      campanhaBooking &&
+      campanhaBooking.campaign_started_at &&
+      campanhaBooking.campaign_ends_at &&
+      new Date(
+        campanhaBooking.campaign_started_at
+      ) <= agora &&
+      new Date(
+        campanhaBooking.campaign_ends_at
+      ) >= agora
+    );
+
+  const aiAtivaPorCampanha =
+    campanhaAIAtiva &&
+    campanhaBooking?.ai_suspended !== true;
+
+  const aiSuspensaPorCampanha =
+    campanhaAIAtiva &&
+    campanhaBooking?.ai_suspended === true;
+
+  const aiEnabled =
+    subscricao
+      ? subscricao.ai_enabled !== false
+      : aiAtivaPorCampanha;
 
   // ─────────────────────────────────────────
   // 5. Configuração da IA
@@ -489,11 +541,10 @@ export default async function NexoraAdminClientPage({
 
           {/* Controlo da IA */}
 
-            <AIControl
+          <AIControl
             companyId={empresa.id}
-            aiEnabled={subscricao?.ai_enabled ?? true}
-            />
-
+            aiEnabled={aiEnabled}
+          />
           {/* Configuração da IA */}
 
           <div className="mt-10 rounded-3xl border border-cyan-400/20 bg-slate-900">

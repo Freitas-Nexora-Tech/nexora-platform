@@ -312,7 +312,7 @@ export default async function NexoraAIDashboardPage() {
               </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
 
               {/* Chat */}
 
@@ -413,6 +413,26 @@ export default async function NexoraAIDashboardPage() {
 
                 <span className="mt-5 inline-block font-semibold text-cyan-400">
                   Ver conversas →
+                </span>
+              </a>
+              {/* Nexora Booking */}
+
+              <a
+                href="/nexora-ai/booking "
+                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+              >
+                <div className="text-3xl">📅</div>
+
+                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                  Nexora Booking
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  Gerir marcações, serviços, profissionais e horários da sua empresa.
+                </p>
+
+                <span className="mt-5 inline-block font-semibold text-cyan-400">
+                  Abrir Booking →
                 </span>
               </a>
 
