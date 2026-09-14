@@ -410,6 +410,42 @@ export default async function NexoraBookingPage() {
                                     Gerir bloqueios →
                                 </span>
                             </a>
+                            <a
+                                href="/nexora-ai/booking/agendamentos"
+                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                            >
+                                <div className="text-3xl">📝</div>
+
+                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                    Agendamentos
+                                </h2>
+
+                                <p className="mt-2 text-sm leading-6 text-slate-400">
+                                    Consultar, gerir e acompanhar todas as marcações da empresa.
+                                </p>
+
+                                <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                    Gerir agendamentos →
+                                </span>
+                            </a>
+                            <a
+                                href="/nexora-ai/booking/financeiro"
+                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                            >
+                                <div className="text-3xl">💰</div>
+
+                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                    Financeiro
+                                </h2>
+
+                                <p className="mt-2 text-sm leading-6 text-slate-400">
+                                    Acompanhar o caixa gerado pelas marcações concluídas.
+                                </p>
+
+                                <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                    Ver financeiro →
+                                </span>
+                            </a>
 
                         </div>
                     </div>
