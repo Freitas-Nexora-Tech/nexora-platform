@@ -193,3 +193,25 @@ Ao terminar cada etapa importante:
 4. Criar um commit Git quando a etapa estiver estável.
 
 Nunca considerar uma etapa concluída sem atualizar o estado do projeto.
+
+### Calendário e permissões — melhoria concluída
+
+- Vista diária e semanal implementadas.
+- Cabeçalhos dos dias na vista semanal são clicáveis e abrem a vista diária correspondente.
+- Marcações na vista semanal e diária são clicáveis.
+- Criado `DetalhesMarcacaoModal.tsx` para consulta dos detalhes da marcação.
+- Criado `MarcacaoCalendarioButton.tsx` para gerir a abertura do modal.
+- Modal apresenta:
+  - cliente
+  - serviço
+  - profissional
+  - horário
+  - estado
+  - notas
+- Ações de gestão passaram para o modal.
+- Ações de gestão continuam condicionadas à permissão `marcacoes`.
+- Funcionários com apenas `agenda` conseguem consultar marcações, mas não geri-las.
+- Área de Clientes alinhada com a permissão `clientes`.
+- Quem possui `clientes` pode consultar, criar, editar e eliminar clientes.
+- Quem não possui `clientes` é redirecionado para o Booking.
+- Testes realizados com build concluído com sucesso.

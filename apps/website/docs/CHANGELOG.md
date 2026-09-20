@@ -115,6 +115,23 @@ Funcionalidades:
 * Build de produção: **OK**
 * Teste no navegador: **OK**
 
+## 2026-09-20 — Calendário e permissões
+
+### Adicionado
+- Modal de detalhes das marcações.
+- Clique nas marcações da vista diária e semanal.
+- Navegação da vista semanal para a vista diária através dos cabeçalhos dos dias.
+- Novo componente `MarcacaoCalendarioButton`.
+
+### Alterado
+- Ações de gestão de marcações passaram para o modal de detalhes.
+- Modal otimizado para ocupar menos espaço no ecrã.
+- Permissões `agenda` e `marcacoes` continuam separadas.
+- Área de Clientes passou a validar a permissão `clientes`.
+- A permissão `clientes` mantém acesso a consulta, criação, edição e eliminação.
+
+### Validação
+- `npm run build` concluído com sucesso.
+
 ### Próxima etapa
 
-**9K.3 — Visão anual**

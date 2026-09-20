@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { getBookingAccess } from "@/lib/booking-permissions";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -11,7 +12,17 @@ export default async function NexoraBookingPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
+    }
+
+    const access = await getBookingAccess();
+
+    if (!access) {
+        redirect("/booking/login");
+    }
+
+    if (access.mustChangePassword) {
+        redirect("/booking/alterar-password");
     }
 
     // Empresa associada ao utilizador
@@ -26,7 +37,7 @@ export default async function NexoraBookingPage() {
         .single();
 
     if (membroError || !membro) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
     // Dados da empresa
@@ -40,7 +51,7 @@ export default async function NexoraBookingPage() {
         .single();
 
     if (empresaError || !empresa) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
     // Configuração do Booking
@@ -53,69 +64,79 @@ export default async function NexoraBookingPage() {
         .maybeSingle();
 
     // Contagens
-    const { count: servicosCount } = await supabase
-        .from("servicos")
-        .select("id", {
-            count: "exact",
-            head: true,
-        })
-        .eq("empresa_id", empresa.id)
-        .eq("ativo", true);
+    const { count: servicosCount } = access.can("servicos")
+        ? await supabase
+              .from("servicos")
+              .select("id", {
+                  count: "exact",
+                  head: true,
+              })
+              .eq("empresa_id", empresa.id)
+              .eq("ativo", true)
+        : { count: null };
 
-    const { count: profissionaisCount } = await supabase
-        .from("profissionais")
-        .select("id", {
-            count: "exact",
-            head: true,
-        })
-        .eq("empresa_id", empresa.id)
-        .eq("ativo", true);
+    const { count: profissionaisCount } = access.can("profissionais")
+        ? await supabase
+              .from("profissionais")
+              .select("id", {
+                  count: "exact",
+                  head: true,
+              })
+              .eq("empresa_id", empresa.id)
+              .eq("ativo", true)
+        : { count: null };
 
-    const { count: clientesCount } = await supabase
-        .from("clientes")
-        .select("id", {
-            count: "exact",
-            head: true,
-        })
-        .eq("empresa_id", empresa.id);
+    const { count: clientesCount } = access.can("clientes")
+        ? await supabase
+              .from("clientes")
+              .select("id", {
+                  count: "exact",
+                  head: true,
+              })
+              .eq("empresa_id", empresa.id)
+        : { count: null };
 
-    const { count: agendamentosCount } = await supabase
-        .from("agendamentos")
-        .select("id", {
-            count: "exact",
-            head: true,
-        })
-        .eq("empresa_id", empresa.id)
-        .in("estado", ["pendente", "confirmado"]);
+    const { count: agendamentosCount } = access.can("agenda")
+        ? await supabase
+              .from("agendamentos")
+              .select("id", {
+                  count: "exact",
+                  head: true,
+              })
+              .eq("empresa_id", empresa.id)
+              .in("estado", ["pendente", "confirmado"])
+        : { count: null };
 
     // Próximos agendamentos
-    const { data: proximosAgendamentos } = await supabase
-        .from("agendamentos")
-        .select(
-            `
-      id,
-      inicio,
-      fim,
-      estado,
-      notas,
-      clientes (
-        nome
-      ),
-      servicos (
-        nome
-      ),
-      profissionais (
-        nome
-      )
-    `
-        )
-        .eq("empresa_id", empresa.id)
-        .in("estado", ["pendente", "confirmado"])
-        .gte("inicio", new Date().toISOString())
-        .order("inicio", {
-            ascending: true,
-        })
-        .limit(5);
+    const { data: proximosAgendamentos } = access.can("agenda")
+        ? await supabase
+              .from("agendamentos")
+              .select(
+                  `
+                    id,
+                    inicio,
+                    fim,
+                    estado,
+                    notas,
+                    clientes (
+                        nome
+                    ),
+                    servicos (
+                        nome
+                    ),
+                    profissionais (
+                        nome
+                    )
+                `
+              )
+              .eq("empresa_id", empresa.id)
+              .in("estado", ["pendente", "confirmado"])
+              .gte("inicio", new Date().toISOString())
+              .order("inicio", {
+                  ascending: true,
+              })
+              .limit(5)
+        : { data: null };
 
     return (
         <main className="min-h-screen bg-slate-950 text-white">
@@ -191,93 +212,101 @@ export default async function NexoraBookingPage() {
 
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
 
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
-                            <div className="flex items-center justify-between">
-                                <div className="text-3xl">📅</div>
+                        {access.can("agenda") && (
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-3xl">📅</div>
 
-                                <span className="text-xs text-slate-600">
-                                    Booking
-                                </span>
+                                    <span className="text-xs text-slate-600">
+                                        Booking
+                                    </span>
+                                </div>
+
+                                <p className="mt-5 text-sm text-slate-500">
+                                    Agendamentos
+                                </p>
+
+                                <p className="mt-1 text-3xl font-bold">
+                                    {agendamentosCount ?? 0}
+                                </p>
+
+                                <p className="mt-2 text-sm text-slate-500">
+                                    pendentes ou confirmados
+                                </p>
                             </div>
+                        )}
 
-                            <p className="mt-5 text-sm text-slate-500">
-                                Agendamentos
-                            </p>
+                        {access.can("servicos") && (
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-3xl">💆</div>
 
-                            <p className="mt-1 text-3xl font-bold">
-                                {agendamentosCount ?? 0}
-                            </p>
+                                    <span className="text-xs text-slate-600">
+                                        Serviços
+                                    </span>
+                                </div>
 
-                            <p className="mt-2 text-sm text-slate-500">
-                                pendentes ou confirmados
-                            </p>
-                        </div>
+                                <p className="mt-5 text-sm text-slate-500">
+                                    Serviços ativos
+                                </p>
 
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
-                            <div className="flex items-center justify-between">
-                                <div className="text-3xl">💆</div>
+                                <p className="mt-1 text-3xl font-bold">
+                                    {servicosCount ?? 0}
+                                </p>
 
-                                <span className="text-xs text-slate-600">
-                                    Serviços
-                                </span>
+                                <p className="mt-2 text-sm text-slate-500">
+                                    disponíveis para marcação
+                                </p>
                             </div>
+                        )}
 
-                            <p className="mt-5 text-sm text-slate-500">
-                                Serviços ativos
-                            </p>
+                        {access.can("profissionais") && (
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-3xl">👤</div>
 
-                            <p className="mt-1 text-3xl font-bold">
-                                {servicosCount ?? 0}
-                            </p>
+                                    <span className="text-xs text-slate-600">
+                                        Equipa
+                                    </span>
+                                </div>
 
-                            <p className="mt-2 text-sm text-slate-500">
-                                disponíveis para marcação
-                            </p>
-                        </div>
+                                <p className="mt-5 text-sm text-slate-500">
+                                    Profissionais
+                                </p>
 
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
-                            <div className="flex items-center justify-between">
-                                <div className="text-3xl">👤</div>
+                                <p className="mt-1 text-3xl font-bold">
+                                    {profissionaisCount ?? 0}
+                                </p>
 
-                                <span className="text-xs text-slate-600">
-                                    Equipa
-                                </span>
+                                <p className="mt-2 text-sm text-slate-500">
+                                    profissionais ativos
+                                </p>
                             </div>
+                        )}
 
-                            <p className="mt-5 text-sm text-slate-500">
-                                Profissionais
-                            </p>
+                        {access.can("clientes") && (
+                            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-3xl">👥</div>
 
-                            <p className="mt-1 text-3xl font-bold">
-                                {profissionaisCount ?? 0}
-                            </p>
+                                    <span className="text-xs text-slate-600">
+                                        Clientes
+                                    </span>
+                                </div>
 
-                            <p className="mt-2 text-sm text-slate-500">
-                                profissionais ativos
-                            </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-cyan-400/40">
-                            <div className="flex items-center justify-between">
-                                <div className="text-3xl">👥</div>
-
-                                <span className="text-xs text-slate-600">
+                                <p className="mt-5 text-sm text-slate-500">
                                     Clientes
-                                </span>
+                                </p>
+
+                                <p className="mt-1 text-3xl font-bold">
+                                    {clientesCount ?? 0}
+                                </p>
+
+                                <p className="mt-2 text-sm text-slate-500">
+                                    clientes registados
+                                </p>
                             </div>
-
-                            <p className="mt-5 text-sm text-slate-500">
-                                Clientes
-                            </p>
-
-                            <p className="mt-1 text-3xl font-bold">
-                                {clientesCount ?? 0}
-                            </p>
-
-                            <p className="mt-2 text-sm text-slate-500">
-                                clientes registados
-                            </p>
-                        </div>
+                        )}
 
                     </div>
 
@@ -291,349 +320,418 @@ export default async function NexoraBookingPage() {
                             </h2>
 
                             <p className="mt-2 text-slate-500">
-                                Aceda rapidamente às principais áreas do sistema.
+                                Aceda rapidamente às áreas autorizadas.
                             </p>
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
-                            <a
-                                href="/nexora-ai/booking/calendario"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">📅</div>
+                            {access.can("agenda") && (
+                                <a
+                                    href="/nexora-ai/booking/calendario"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">📅</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Calendário
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Calendário
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Consulte e organize as marcações da empresa.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Consulte e organize as marcações da empresa.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Abrir calendário →
-                                </span>
-                            </a>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Abrir calendário →
+                                    </span>
+                                </a>
+                            )}
 
-                            <a
-                                href="/nexora-ai/booking/servicos"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">💆</div>
+                            {access.can("servicos") && (
+                                <a
+                                    href="/nexora-ai/booking/servicos"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">💆</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Serviços
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Serviços
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Gerir serviços, duração, preços e disponibilidade.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Gerir serviços, duração, preços e disponibilidade.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir serviços →
-                                </span>
-                            </a>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir serviços →
+                                    </span>
+                                </a>
+                            )}
 
-                            <a
-                                href="/nexora-ai/booking/profissionais"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">👤</div>
+                            {access.can("profissionais") && (
+                                <a
+                                    href="/nexora-ai/booking/profissionais"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">👤</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Profissionais
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Profissionais
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Gerir profissionais e os serviços que realizam.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Gerir profissionais e os serviços que realizam.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir profissionais →
-                                </span>
-                            </a>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir profissionais →
+                                    </span>
+                                </a>
+                            )}
 
-                            <a
-                                href="/nexora-ai/booking/clientes"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">👥</div>
+                            {access.can("clientes") && (
+                                <a
+                                    href="/nexora-ai/booking/clientes"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">👥</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Clientes
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Clientes
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Consultar e gerir os clientes da empresa.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Consultar e gerir os clientes da empresa.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir clientes →
-                                </span>
-                            </a>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir clientes →
+                                    </span>
+                                </a>
+                            )}
 
-                            <a
-                                href="/nexora-ai/booking/disponibilidade"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">🕐</div>
+                            {access.can("disponibilidade") && (
+                                <a
+                                    href="/nexora-ai/booking/disponibilidade"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">🕐</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Disponibilidade
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Disponibilidade
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Definir os horários de atendimento dos profissionais.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Definir os horários de atendimento dos profissionais.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir disponibilidade →
-                                </span>
-                            </a>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir disponibilidade →
+                                    </span>
+                                </a>
+                            )}
 
-                            <a
-                                href="/nexora-ai/booking/bloqueios"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">🚫</div>
+                            {access.can("bloqueios") && (
+                                <a
+                                    href="/nexora-ai/booking/bloqueios"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">🚫</div>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Bloqueios
-                                </h2>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Bloqueios
+                                    </h2>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Bloquear períodos em que um profissional não está disponível.
-                                </p>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Bloquear períodos em que um profissional não está disponível.
+                                    </p>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir bloqueios →
-                                </span>
-                            </a>
-                            <a
-                                href="/nexora-ai/booking/agendamentos"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">📝</div>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir bloqueios →
+                                    </span>
+                                </a>
+                            )}
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Agendamentos
-                                </h2>
+                            {access.can("marcacoes") && (
+                                <a
+                                    href="/nexora-ai/booking/agendamentos"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">📝</div>
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Consultar, gerir e acompanhar todas as marcações da empresa.
-                                </p>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Agendamentos
+                                    </h2>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Gerir agendamentos →
-                                </span>
-                            </a>
-                            <a
-                                href="/nexora-ai/booking/financeiro"
-                                className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
-                            >
-                                <div className="text-3xl">💰</div>
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Consultar, gerir e acompanhar todas as marcações da empresa.
+                                    </p>
 
-                                <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
-                                    Financeiro
-                                </h2>
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir agendamentos →
+                                    </span>
+                                </a>
+                            )}
 
-                                <p className="mt-2 text-sm leading-6 text-slate-400">
-                                    Acompanhar o caixa gerado pelas marcações concluídas.
-                                </p>
+                            {access.can("financeiro") && (
+                                <a
+                                    href="/nexora-ai/booking/financeiro"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">💰</div>
 
-                                <span className="mt-5 inline-block font-semibold text-cyan-400">
-                                    Ver financeiro →
-                                </span>
-                            </a>
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Financeiro
+                                    </h2>
+
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Acompanhar o caixa gerado pelas marcações concluídas.
+                                    </p>
+
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Ver financeiro →
+                                    </span>
+                                </a>
+                            )}
+
+                            {access.can("configuracoes") && (
+                                <a
+                                    href="/nexora-ai/booking/configuracoes"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">⚙️</div>
+
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Configurações
+                                    </h2>
+
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Gerir as configurações do Nexora Booking.
+                                    </p>
+
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Configurar Booking →
+                                    </span>
+                                </a>
+                            )}
+
+                            {access.can("equipa") && (
+                                <a
+                                    href="/nexora-ai/booking/equipa"
+                                    className="group rounded-3xl border border-slate-800 bg-slate-900 p-7 transition hover:-translate-y-1 hover:border-cyan-400/60 hover:shadow-xl hover:shadow-cyan-500/5"
+                                >
+                                    <div className="text-3xl">👥</div>
+
+                                    <h2 className="mt-4 text-xl font-bold group-hover:text-cyan-400">
+                                        Equipa
+                                    </h2>
+
+                                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                                        Gerir funcionários e permissões de acesso.
+                                    </p>
+
+                                    <span className="mt-5 inline-block font-semibold text-cyan-400">
+                                        Gerir equipa →
+                                    </span>
+                                </a>
+                            )}
 
                         </div>
                     </div>
 
                     {/* Próximos agendamentos */}
 
-                    <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900 p-7">
+                    {access.can("agenda") && (
+                        <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900 p-7">
 
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <p className="text-sm font-semibold uppercase tracking-wider text-cyan-400">
-                                    Agenda
-                                </p>
-
-                                <h2 className="mt-2 text-2xl font-bold">
-                                    Próximos agendamentos
-                                </h2>
-
-                                <p className="mt-2 text-sm text-slate-500">
-                                    As próximas marcações da sua empresa.
-                                </p>
-                            </div>
-
-                            <a
-                                href="/nexora-ai/booking/calendario"
-                                className="font-semibold text-cyan-400 transition hover:text-cyan-300"
-                            >
-                                Ver calendário →
-                            </a>
-                        </div>
-
-                        <div className="mt-6 space-y-3">
-
-                            {proximosAgendamentos &&
-                                proximosAgendamentos.length > 0 ? (
-                                proximosAgendamentos.map((agendamento) => {
-                                    const cliente = Array.isArray(agendamento.clientes)
-                                        ? agendamento.clientes[0]
-                                        : agendamento.clientes;
-
-                                    const servico = Array.isArray(agendamento.servicos)
-                                        ? agendamento.servicos[0]
-                                        : agendamento.servicos;
-
-                                    const profissional = Array.isArray(
-                                        agendamento.profissionais
-                                    )
-                                        ? agendamento.profissionais[0]
-                                        : agendamento.profissionais;
-
-                                    return (
-                                        <div
-                                            key={agendamento.id}
-                                            className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
-                                        >
-                                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
-                                                <div>
-                                                    <p className="font-bold">
-                                                        {cliente?.nome ?? "Cliente"}
-                                                    </p>
-
-                                                    <p className="mt-1 text-sm text-slate-400">
-                                                        {servico?.nome ?? "Serviço"} ·{" "}
-                                                        {profissional?.nome ?? "Profissional"}
-                                                    </p>
-                                                </div>
-
-                                                <div className="text-left md:text-right">
-                                                    <p className="font-semibold text-cyan-400">
-                                                        {new Date(
-                                                            agendamento.inicio
-                                                        ).toLocaleString("pt-PT", {
-                                                            dateStyle: "short",
-                                                            timeStyle: "short",
-                                                            timeZone:
-                                                                configuracao?.fuso_horario ||
-                                                                "Europe/Lisbon",
-                                                        })}
-                                                    </p>
-
-                                                    <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
-                                                        {agendamento.estado}
-                                                    </p>
-                                                </div>
-
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="rounded-2xl border border-dashed border-slate-800 p-8 text-center">
-                                    <div className="text-4xl">📅</div>
-
-                                    <p className="mt-4 font-semibold">
-                                        Não existem próximos agendamentos.
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold uppercase tracking-wider text-cyan-400">
+                                        Agenda
                                     </p>
+
+                                    <h2 className="mt-2 text-2xl font-bold">
+                                        Próximos agendamentos
+                                    </h2>
 
                                     <p className="mt-2 text-sm text-slate-500">
-                                        Quando houver marcações, elas aparecerão aqui.
+                                        As próximas marcações da sua empresa.
                                     </p>
                                 </div>
-                            )}
 
+                                <a
+                                    href="/nexora-ai/booking/calendario"
+                                    className="font-semibold text-cyan-400 transition hover:text-cyan-300"
+                                >
+                                    Ver calendário →
+                                </a>
+                            </div>
+
+                            <div className="mt-6 space-y-3">
+
+                                {proximosAgendamentos &&
+                                proximosAgendamentos.length > 0 ? (
+                                    proximosAgendamentos.map((agendamento) => {
+
+                                        const cliente = Array.isArray(
+                                            agendamento.clientes
+                                        )
+                                            ? agendamento.clientes[0]
+                                            : agendamento.clientes;
+
+                                        const servico = Array.isArray(
+                                            agendamento.servicos
+                                        )
+                                            ? agendamento.servicos[0]
+                                            : agendamento.servicos;
+
+                                        const profissional = Array.isArray(
+                                            agendamento.profissionais
+                                        )
+                                            ? agendamento.profissionais[0]
+                                            : agendamento.profissionais;
+
+                                        return (
+                                            <div
+                                                key={agendamento.id}
+                                                className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
+                                            >
+                                                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+                                                    <div>
+                                                        <p className="font-bold">
+                                                            {cliente?.nome ?? "Cliente"}
+                                                        </p>
+
+                                                        <p className="mt-1 text-sm text-slate-400">
+                                                            {servico?.nome ?? "Serviço"} ·{" "}
+                                                            {profissional?.nome ?? "Profissional"}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="text-left md:text-right">
+                                                        <p className="font-semibold text-cyan-400">
+                                                            {new Date(
+                                                                agendamento.inicio
+                                                            ).toLocaleString("pt-PT", {
+                                                                dateStyle: "short",
+                                                                timeStyle: "short",
+                                                                timeZone:
+                                                                    configuracao?.fuso_horario ||
+                                                                    "Europe/Lisbon",
+                                                            })}
+                                                        </p>
+
+                                                        <p className="mt-1 text-xs uppercase tracking-wider text-slate-500">
+                                                            {agendamento.estado}
+                                                        </p>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="rounded-2xl border border-dashed border-slate-800 p-8 text-center">
+                                        <div className="text-4xl">📅</div>
+
+                                        <p className="mt-4 font-semibold">
+                                            Não existem próximos agendamentos.
+                                        </p>
+
+                                        <p className="mt-2 text-sm text-slate-500">
+                                            Quando houver marcações, elas aparecerão aqui.
+                                        </p>
+                                    </div>
+                                )}
+
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Configuração atual */}
 
-                    <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900/60 p-7">
+                    {access.can("configuracoes") && (
+                        <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900/60 p-7">
 
-                        <div className="mb-6">
-                            <p className="text-sm font-semibold uppercase tracking-wider text-cyan-400">
-                                Configuração
-                            </p>
+                            <div className="mb-6">
+                                <p className="text-sm font-semibold uppercase tracking-wider text-cyan-400">
+                                    Configuração
+                                </p>
 
-                            <h2 className="mt-2 text-2xl font-bold">
-                                Regras atuais do Booking
-                            </h2>
-                        </div>
-
-                        {configuracao ? (
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-                                <div className="rounded-2xl bg-slate-950/60 p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Capacidade
-                                    </p>
-
-                                    <p className="mt-2 text-2xl font-bold">
-                                        {configuracao.capacidade_por_horario}
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-slate-600">
-                                        cliente(s) por horário
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl bg-slate-950/60 p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Intervalo
-                                    </p>
-
-                                    <p className="mt-2 text-2xl font-bold">
-                                        {configuracao.intervalo_marcacao_minutos}
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-slate-600">
-                                        minutos
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl bg-slate-950/60 p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Antecedência mínima
-                                    </p>
-
-                                    <p className="mt-2 text-2xl font-bold">
-                                        {configuracao.antecedencia_minima_minutos}
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-slate-600">
-                                        minutos
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl bg-slate-950/60 p-5">
-                                    <p className="text-sm text-slate-500">
-                                        Antecedência máxima
-                                    </p>
-
-                                    <p className="mt-2 text-2xl font-bold">
-                                        {configuracao.antecedencia_maxima_dias}
-                                    </p>
-
-                                    <p className="mt-1 text-xs text-slate-600">
-                                        dias
-                                    </p>
-                                </div>
-
+                                <h2 className="mt-2 text-2xl font-bold">
+                                    Regras atuais do Booking
+                                </h2>
                             </div>
-                        ) : (
-                            <p className="text-slate-500">
-                                A configuração de agendamento ainda não foi definida.
-                            </p>
-                        )}
 
-                    </div>
+                            {configuracao ? (
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                                    <div className="rounded-2xl bg-slate-950/60 p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Capacidade
+                                        </p>
+
+                                        <p className="mt-2 text-2xl font-bold">
+                                            {configuracao.capacidade_por_horario}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-slate-600">
+                                            cliente(s) por horário
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl bg-slate-950/60 p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Intervalo
+                                        </p>
+
+                                        <p className="mt-2 text-2xl font-bold">
+                                            {configuracao.intervalo_marcacao_minutos}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-slate-600">
+                                            minutos
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl bg-slate-950/60 p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Antecedência mínima
+                                        </p>
+
+                                        <p className="mt-2 text-2xl font-bold">
+                                            {configuracao.antecedencia_minima_minutos}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-slate-600">
+                                            minutos
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-2xl bg-slate-950/60 p-5">
+                                        <p className="text-sm text-slate-500">
+                                            Antecedência máxima
+                                        </p>
+
+                                        <p className="mt-2 text-2xl font-bold">
+                                            {configuracao.antecedencia_maxima_dias}
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-slate-600">
+                                            dias
+                                        </p>
+                                    </div>
+
+                                </div>
+                            ) : (
+                                <p className="text-slate-500">
+                                    A configuração de agendamento ainda não foi definida.
+                                </p>
+                            )}
+
+                        </div>
+                    )}
 
                 </div>
             </section>

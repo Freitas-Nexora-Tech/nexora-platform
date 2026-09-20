@@ -53,7 +53,7 @@ export async function PATCH(
             error: membroError,
         } = await supabase
             .from("company_members")
-            .select("company_id")
+            .select("id, company_id, role")
             .eq("user_id", user.id)
             .limit(1)
             .single();
@@ -70,12 +70,75 @@ export async function PATCH(
             );
         }
 
-        const { data: agendamento } = await supabase
-            .from("agendamentos")
-            .select("*")
-            .eq("id", id)
-            .eq("empresa_id", membro.company_id)
-            .maybeSingle();
+        const empresaId = membro.company_id;
+
+        /*
+         * Verificar permissão para confirmar marcações.
+         *
+         * Administradores têm acesso total.
+         * Funcionários precisam da permissão "marcacoes".
+         */
+        if (membro.role !== "admin") {
+            const {
+                data: permissao,
+                error: permissaoError,
+            } = await supabase
+                .from("company_member_permissions")
+                .select("id")
+                .eq("member_id", membro.id)
+                .eq("permission", "marcacoes")
+                .limit(1)
+                .maybeSingle();
+
+            if (permissaoError) {
+                console.error(
+                    "Erro ao verificar permissão de marcações:",
+                    permissaoError
+                );
+
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não foi possível verificar as permissões do utilizador.",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+            if (!permissao) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não tem permissão para gerir marcações.",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
+        const { data: agendamento, error: agendamentoError } =
+            await supabase
+                .from("agendamentos")
+                .select("*")
+                .eq("id", id)
+                .eq("empresa_id", empresaId)
+                .maybeSingle();
+
+        if (agendamentoError) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não foi possível consultar a marcação.",
+                },
+                {
+                    status: 500,
+                }
+            );
+        }
 
         if (!agendamento) {
             return NextResponse.json(
@@ -107,7 +170,7 @@ export async function PATCH(
             .from("agendamentos")
             .update({ estado: "confirmado" })
             .eq("id", id)
-            .eq("empresa_id", membro.company_id)
+            .eq("empresa_id", empresaId)
             .select("*")
             .single();
 

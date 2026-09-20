@@ -259,6 +259,17 @@ Cada etapa deve seguir:
 
 Uma etapa só é considerada **CONCLUÍDA** depois destes passos.
 
+### Calendário — melhorias de navegação e detalhes
+
+- [x] Vista diária e semanal
+- [x] Navegação entre dias/semanas
+- [x] Clique no cabeçalho de um dia semanal para abrir a vista diária
+- [x] Clique numa marcação para abrir detalhes
+- [x] Modal compacto de detalhes da marcação
+- [x] Ações de gestão integradas no modal
+- [x] Respeito pela permissão `marcacoes`
+- [x] Proteção da área de Clientes pela permissão `clientes`
+
 ---
 
 # Etapa atual
