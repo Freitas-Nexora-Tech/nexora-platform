@@ -8,7 +8,7 @@ type CriarClienteBody = {
     notas?: string | null;
 };
 
-async function obterEmpresaDoUtilizador() {
+async function obterAcessoClientes() {
     const supabase =
         await createSupabaseServerClient();
 
@@ -20,7 +20,8 @@ async function obterEmpresaDoUtilizador() {
         return {
             supabase,
             user: null,
-            empresaId: null,
+            membro: null,
+            autorizado: false,
         };
     }
 
@@ -29,7 +30,9 @@ async function obterEmpresaDoUtilizador() {
         error: membroError,
     } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
@@ -38,14 +41,57 @@ async function obterEmpresaDoUtilizador() {
         return {
             supabase,
             user,
-            empresaId: null,
+            membro: null,
+            autorizado: false,
+        };
+    }
+
+    if (
+        !membro.is_active ||
+        membro.must_change_password
+    ) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
+        };
+    }
+
+    if (membro.role === "admin") {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: true,
+        };
+    }
+
+    const {
+        data: permissao,
+        error: permissaoError,
+    } = await supabase
+        .from("company_member_permissions")
+        .select("id")
+        .eq("member_id", membro.id)
+        .eq("permission", "clientes")
+        .limit(1)
+        .maybeSingle();
+
+    if (permissaoError || !permissao) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
         };
     }
 
     return {
         supabase,
         user,
-        empresaId: membro.company_id,
+        membro,
+        autorizado: true,
     };
 }
 
@@ -54,8 +100,9 @@ export async function GET() {
         const {
             supabase,
             user,
-            empresaId,
-        } = await obterEmpresaDoUtilizador();
+            membro,
+            autorizado,
+        } = await obterAcessoClientes();
 
         if (!user) {
             return NextResponse.json(
@@ -68,7 +115,7 @@ export async function GET() {
             );
         }
 
-        if (!empresaId) {
+        if (!membro?.company_id) {
             return NextResponse.json(
                 {
                     error:
@@ -79,6 +126,44 @@ export async function GET() {
                 }
             );
         }
+
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir clientes.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId = membro.company_id;
 
         const {
             data: clientes,
@@ -131,13 +216,16 @@ export async function GET() {
     }
 }
 
-export async function POST(request: Request) {
+export async function POST(
+    request: Request
+) {
     try {
         const {
             supabase,
             user,
-            empresaId,
-        } = await obterEmpresaDoUtilizador();
+            membro,
+            autorizado,
+        } = await obterAcessoClientes();
 
         if (!user) {
             return NextResponse.json(
@@ -150,7 +238,7 @@ export async function POST(request: Request) {
             );
         }
 
-        if (!empresaId) {
+        if (!membro?.company_id) {
             return NextResponse.json(
                 {
                     error:
@@ -161,6 +249,44 @@ export async function POST(request: Request) {
                 }
             );
         }
+
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir clientes.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId = membro.company_id;
 
         const body =
             (await request.json()) as CriarClienteBody;

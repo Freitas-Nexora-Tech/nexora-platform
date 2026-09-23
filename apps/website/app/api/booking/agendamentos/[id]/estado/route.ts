@@ -16,7 +16,8 @@ export async function PATCH(
     context: RouteContext
 ) {
     try {
-        const supabase = await createSupabaseServerClient();
+        const supabase =
+            await createSupabaseServerClient();
 
         const {
             data: { user },
@@ -33,8 +34,11 @@ export async function PATCH(
             );
         }
 
-        const { id } = await context.params;
-        const body = (await request.json()) as EstadoBody;
+        const { id } =
+            await context.params;
+
+        const body =
+            (await request.json()) as EstadoBody;
 
         if (body?.estado !== "confirmado") {
             return NextResponse.json(
@@ -48,12 +52,18 @@ export async function PATCH(
             );
         }
 
+        // ---------------------------------------------------------
+        // Membro, empresa e permissões
+        // ---------------------------------------------------------
+
         const {
             data: membro,
             error: membroError,
         } = await supabase
             .from("company_members")
-            .select("id, company_id, role")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
             .eq("user_id", user.id)
             .limit(1)
             .single();
@@ -70,14 +80,35 @@ export async function PATCH(
             );
         }
 
-        const empresaId = membro.company_id;
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "A sua conta está desativada.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
 
-        /*
-         * Verificar permissão para confirmar marcações.
-         *
-         * Administradores têm acesso total.
-         * Funcionários precisam da permissão "marcacoes".
-         */
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a password antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId =
+            membro.company_id;
+
+        // Administradores têm acesso total.
+        // Funcionários precisam da permissão "marcacoes".
         if (membro.role !== "admin") {
             const {
                 data: permissao,
@@ -85,8 +116,14 @@ export async function PATCH(
             } = await supabase
                 .from("company_member_permissions")
                 .select("id")
-                .eq("member_id", membro.id)
-                .eq("permission", "marcacoes")
+                .eq(
+                    "member_id",
+                    membro.id
+                )
+                .eq(
+                    "permission",
+                    "marcacoes"
+                )
                 .limit(1)
                 .maybeSingle();
 
@@ -120,13 +157,25 @@ export async function PATCH(
             }
         }
 
-        const { data: agendamento, error: agendamentoError } =
-            await supabase
-                .from("agendamentos")
-                .select("*")
-                .eq("id", id)
-                .eq("empresa_id", empresaId)
-                .maybeSingle();
+        // ---------------------------------------------------------
+        // Procurar marcação da própria empresa
+        // ---------------------------------------------------------
+
+        const {
+            data: agendamento,
+            error: agendamentoError,
+        } = await supabase
+            .from("agendamentos")
+            .select("*")
+            .eq(
+                "id",
+                id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .maybeSingle();
 
         if (agendamentoError) {
             return NextResponse.json(
@@ -143,7 +192,8 @@ export async function PATCH(
         if (!agendamento) {
             return NextResponse.json(
                 {
-                    error: "Marcação não encontrada.",
+                    error:
+                        "Marcação não encontrada.",
                 },
                 {
                     status: 404,
@@ -151,7 +201,14 @@ export async function PATCH(
             );
         }
 
-        if (agendamento.estado !== "pendente") {
+        // ---------------------------------------------------------
+        // Só marcações pendentes podem ser confirmadas
+        // ---------------------------------------------------------
+
+        if (
+            agendamento.estado !==
+            "pendente"
+        ) {
             return NextResponse.json(
                 {
                     error:
@@ -163,18 +220,37 @@ export async function PATCH(
             );
         }
 
+        // ---------------------------------------------------------
+        // Confirmar marcação
+        // ---------------------------------------------------------
+
         const {
             data: agendamentoAtualizado,
             error: atualizacaoError,
         } = await supabase
             .from("agendamentos")
-            .update({ estado: "confirmado" })
-            .eq("id", id)
-            .eq("empresa_id", empresaId)
+            .update({
+                estado: "confirmado",
+            })
+            .eq(
+                "id",
+                id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .eq(
+                "estado",
+                "pendente"
+            )
             .select("*")
             .single();
 
-        if (atualizacaoError || !agendamentoAtualizado) {
+        if (
+            atualizacaoError ||
+            !agendamentoAtualizado
+        ) {
             return NextResponse.json(
                 {
                     error:
@@ -188,7 +264,8 @@ export async function PATCH(
 
         return NextResponse.json({
             success: true,
-            agendamento: agendamentoAtualizado,
+            agendamento:
+                agendamentoAtualizado,
         });
     } catch (error) {
         console.error(

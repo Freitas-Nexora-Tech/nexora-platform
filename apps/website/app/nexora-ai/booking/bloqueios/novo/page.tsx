@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import NovoBloqueioForm from "@/components/booking/NovoBloqueioForm";
@@ -11,17 +12,44 @@ export default async function NovoBloqueioPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
     const { data: membro } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
-    if (!membro?.company_id) {
+    if (
+        !membro?.company_id ||
+        !membro.is_active
+    ) {
+        redirect("/booking/login");
+    }
+
+    if (membro.must_change_password) {
+        redirect("/booking/alterar-password");
+    }
+
+    let temBloqueios = membro.role === "admin";
+
+    if (!temBloqueios) {
+        const { data: permissaoBloqueios } =
+            await supabase
+                .from("company_member_permissions")
+                .select("permission")
+                .eq("member_id", membro.id)
+                .eq("permission", "bloqueios")
+                .maybeSingle();
+
+        temBloqueios = !!permissaoBloqueios;
+    }
+
+    if (!temBloqueios) {
         redirect("/nexora-ai/booking");
     }
 
@@ -43,12 +71,12 @@ export default async function NovoBloqueioPage() {
     return (
         <main className="min-h-screen bg-slate-950 px-4 py-8 text-white">
             <div className="mx-auto max-w-2xl">
-                <a
+                <Link
                     href="/nexora-ai/booking/bloqueios"
                     className="text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
                 >
                     ← Voltar aos bloqueios
-                </a>
+                </Link>
 
                 <div className="mt-6">
                     <p className="text-sm font-semibold uppercase tracking-wider text-cyan-400">

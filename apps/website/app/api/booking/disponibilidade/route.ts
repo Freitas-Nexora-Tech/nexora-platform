@@ -220,13 +220,18 @@ export async function POST(request: Request) {
             );
         }
 
-        // Empresa associada ao utilizador
+        // ---------------------------------------------------------
+        // Empresa, estado da conta e permissões
+        // ---------------------------------------------------------
+
         const {
             data: membro,
             error: membroError,
         } = await supabase
             .from("company_members")
-            .select("company_id")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
             .eq("user_id", user.id)
             .limit(1)
             .single();
@@ -243,10 +248,81 @@ export async function POST(request: Request) {
             );
         }
 
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "A sua conta está desativada.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a password antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
         const empresaId =
             membro.company_id;
 
+        // Administradores têm acesso total.
+        // Funcionários precisam da permissão "marcacoes"
+        // porque este endpoint calcula horários para criar/editar marcações.
+        if (membro.role !== "admin") {
+            const {
+                data: permissaoMarcacoes,
+                error: permissaoError,
+            } = await supabase
+                .from("company_member_permissions")
+                .select("permission")
+                .eq("member_id", membro.id)
+                .eq("permission", "marcacoes")
+                .maybeSingle();
+
+            if (permissaoError) {
+                console.error(
+                    "Erro ao verificar permissão de marcações:",
+                    permissaoError
+                );
+
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não foi possível validar as permissões.",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+            if (!permissaoMarcacoes) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não tem permissão para gerir marcações.",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
+        // ---------------------------------------------------------
         // Configuração do Booking
+        // ---------------------------------------------------------
+
         const {
             data: configuracao,
             error: configuracaoError,
@@ -287,7 +363,10 @@ export async function POST(request: Request) {
             configuracao.fuso_horario ||
             "Europe/Lisbon";
 
+        // ---------------------------------------------------------
         // Serviço
+        // ---------------------------------------------------------
+
         const {
             data: servico,
             error: servicoError,
@@ -325,7 +404,10 @@ export async function POST(request: Request) {
             );
         }
 
+        // ---------------------------------------------------------
         // Profissional
+        // ---------------------------------------------------------
+
         const {
             data: profissional,
             error: profissionalError,
@@ -361,14 +443,20 @@ export async function POST(request: Request) {
             );
         }
 
+        // ---------------------------------------------------------
         // Validar associação profissional -> serviço
+        // ---------------------------------------------------------
+
         const {
             data: associacao,
             error: associacaoError,
         } = await supabase
             .from("profissionais_servicos")
             .select("id")
-            .eq("empresa_id", empresaId)
+            .eq(
+                "empresa_id",
+                empresaId
+            )
             .eq(
                 "profissional_id",
                 body.profissional_id
@@ -404,7 +492,10 @@ export async function POST(request: Request) {
             );
         }
 
-        // Descobrir o dia da semana da data no calendário local.
+        // ---------------------------------------------------------
+        // Descobrir o dia da semana da data no calendário local
+        // ---------------------------------------------------------
+
         const [year, month, day] =
             body.data
                 .split("-")
@@ -422,7 +513,10 @@ export async function POST(request: Request) {
         const diaSemana =
             calendarioDate.getUTCDay();
 
+        // ---------------------------------------------------------
         // Disponibilidade semanal
+        // ---------------------------------------------------------
+
         const {
             data: disponibilidades,
             error: disponibilidadeError,
@@ -431,7 +525,10 @@ export async function POST(request: Request) {
             .select(
                 "dia_semana, hora_inicio, hora_fim"
             )
-            .eq("empresa_id", empresaId)
+            .eq(
+                "empresa_id",
+                empresaId
+            )
             .eq(
                 "profissional_id",
                 body.profissional_id
@@ -441,9 +538,12 @@ export async function POST(request: Request) {
                 diaSemana
             )
             .eq("ativo", true)
-            .order("hora_inicio", {
-                ascending: true,
-            });
+            .order(
+                "hora_inicio",
+                {
+                    ascending: true,
+                }
+            );
 
         if (disponibilidadeError) {
             return NextResponse.json(
@@ -470,7 +570,10 @@ export async function POST(request: Request) {
             });
         }
 
-        // Limites reais do dia no fuso da empresa.
+        // ---------------------------------------------------------
+        // Limites reais do dia no fuso da empresa
+        // ---------------------------------------------------------
+
         const inicioDiaUTC =
             zonedDateTimeToUTC(
                 body.data,
@@ -504,13 +607,18 @@ export async function POST(request: Request) {
                 timeZone
             );
 
+        // ---------------------------------------------------------
         // Marcações existentes
+        // ---------------------------------------------------------
+
         const {
             data: agendamentos,
             error: agendamentosError,
         } = await supabase
             .from("agendamentos")
-            .select("id, inicio, fim")
+            .select(
+                "id, inicio, fim"
+            )
             .eq(
                 "empresa_id",
                 empresaId
@@ -527,10 +635,13 @@ export async function POST(request: Request) {
                 "fim",
                 inicioDiaUTC.toISOString()
             )
-            .in("estado", [
-                "pendente",
-                "confirmado",
-            ]);
+            .in(
+                "estado",
+                [
+                    "pendente",
+                    "confirmado",
+                ]
+            );
 
         if (agendamentosError) {
             return NextResponse.json(
@@ -548,13 +659,18 @@ export async function POST(request: Request) {
             (agendamentos ??
                 []) as Agendamento[];
 
+        // ---------------------------------------------------------
         // Bloqueios
+        // ---------------------------------------------------------
+
         const {
             data: bloqueios,
             error: bloqueiosError,
         } = await supabase
             .from("bloqueios")
-            .select("inicio, fim")
+            .select(
+                "inicio, fim"
+            )
             .eq(
                 "empresa_id",
                 empresaId
@@ -629,7 +745,9 @@ export async function POST(request: Request) {
                 configuracao.capacidade_por_horario
             );
 
-        for (const disponibilidade of listaDisponibilidades) {
+        for (
+            const disponibilidade of listaDisponibilidades
+        ) {
             const inicio =
                 parseTime(
                     disponibilidade.hora_inicio
@@ -676,16 +794,23 @@ export async function POST(request: Request) {
                 const fimTimestamp =
                     fimLocal.getTime();
 
+                // -------------------------------------------------
                 // Verificar marcações existentes
+                // -------------------------------------------------
+
                 let conflitos = 0;
 
-                for (const agendamento of listaAgendamentos) {
+                for (
+                    const agendamento of listaAgendamentos
+                ) {
                     if (
                         body.agendamento_id &&
-                        agendamento.id === body.agendamento_id
+                        agendamento.id ===
+                        body.agendamento_id
                     ) {
                         continue;
                     }
+
                     const agendamentoInicio =
                         new Date(
                             agendamento.inicio
@@ -714,10 +839,15 @@ export async function POST(request: Request) {
                     continue;
                 }
 
+                // -------------------------------------------------
                 // Verificar bloqueios
+                // -------------------------------------------------
+
                 let bloqueado = false;
 
-                for (const bloqueio of listaBloqueios) {
+                for (
+                    const bloqueio of listaBloqueios
+                ) {
                     const bloqueioInicio =
                         new Date(
                             bloqueio.inicio

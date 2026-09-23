@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 type SucessoPageProps = {
@@ -13,6 +14,58 @@ export default async function SucessoPage({
     const params = await searchParams;
     const agendamentoId = params.id;
 
+    const supabase = await createSupabaseServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+        redirect("/booking/login");
+    }
+
+    // Membro da empresa + controlo de acesso
+    const { data: membro, error: membroError } = await supabase
+        .from("company_members")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+    if (
+        membroError ||
+        !membro?.company_id ||
+        !membro.is_active
+    ) {
+        redirect("/booking/login");
+    }
+
+    if (membro.must_change_password) {
+        redirect("/booking/alterar-password");
+    }
+
+    // Admin tem acesso total.
+    // Funcionário precisa da permissão "marcacoes".
+    let podeGerirMarcacoes = membro.role === "admin";
+
+    if (!podeGerirMarcacoes) {
+        const { data: permissaoMarcacoes } = await supabase
+            .from("company_member_permissions")
+            .select("permission")
+            .eq("member_id", membro.id)
+            .eq("permission", "marcacoes")
+            .maybeSingle();
+
+        podeGerirMarcacoes = !!permissaoMarcacoes;
+    }
+
+    if (!podeGerirMarcacoes) {
+        redirect("/nexora-ai/booking");
+    }
+
+    // Se não existe ID, mostramos a mensagem simples.
     if (!agendamentoId) {
         return (
             <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">
@@ -38,56 +91,32 @@ export default async function SucessoPage({
         );
     }
 
-    const supabase =
-        await createSupabaseServerClient();
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-        return null;
-    }
-
-    const {
-        data: membro,
-    } = await supabase
-        .from("company_members")
-        .select("company_id")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-
-    if (!membro) {
-        return null;
-    }
-
-    const { data: agendamento } =
-        await supabase
-            .from("agendamentos")
-            .select(`
-                id,
-                inicio,
-                fim,
-                estado,
-                notas,
-                clientes (
-                    nome,
-                    email,
-                    telefone
-                ),
-                servicos (
-                    nome,
-                    duracao_minutos,
-                    preco
-                ),
-                profissionais (
-                    nome
-                )
-            `)
-            .eq("id", agendamentoId)
-            .eq("empresa_id", membro.company_id)
-            .maybeSingle();
+    // Procurar a marcação apenas dentro da empresa do utilizador.
+    const { data: agendamento } = await supabase
+        .from("agendamentos")
+        .select(`
+            id,
+            inicio,
+            fim,
+            estado,
+            notas,
+            clientes (
+                nome,
+                email,
+                telefone
+            ),
+            servicos (
+                nome,
+                duracao_minutos,
+                preco
+            ),
+            profissionais (
+                nome
+            )
+        `)
+        .eq("id", agendamentoId)
+        .eq("empresa_id", membro.company_id)
+        .maybeSingle();
 
     if (!agendamento) {
         return (
@@ -128,41 +157,27 @@ export default async function SucessoPage({
         ? agendamento.profissionais[0]
         : agendamento.profissionais;
 
-    const inicio = new Date(
-        agendamento.inicio
-    );
-
-    const fim = new Date(
-        agendamento.fim
-    );
+    const inicio = new Date(agendamento.inicio);
+    const fim = new Date(agendamento.fim);
 
     const dataFormatada =
-        inicio.toLocaleDateString(
-            "pt-PT",
-            {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-            }
-        );
+        inicio.toLocaleDateString("pt-PT", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        });
 
     const horaInicio =
-        inicio.toLocaleTimeString(
-            "pt-PT",
-            {
-                hour: "2-digit",
-                minute: "2-digit",
-            }
-        );
+        inicio.toLocaleTimeString("pt-PT", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
 
     const horaFim =
-        fim.toLocaleTimeString(
-            "pt-PT",
-            {
-                hour: "2-digit",
-                minute: "2-digit",
-            }
-        );
+        fim.toLocaleTimeString("pt-PT", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
 
     return (
         <main className="min-h-screen bg-slate-950 px-6 py-12 text-white">

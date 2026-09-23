@@ -30,14 +30,21 @@ export async function PATCH(
             );
         }
 
-        const { id } = await context.params;
+        const { id } =
+            await context.params;
+
+        // ---------------------------------------------------------
+        // Membro, empresa e permissões
+        // ---------------------------------------------------------
 
         const {
             data: membro,
             error: membroError,
         } = await supabase
             .from("company_members")
-            .select("company_id")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
             .eq("user_id", user.id)
             .limit(1)
             .single();
@@ -54,21 +61,103 @@ export async function PATCH(
             );
         }
 
-        const { data: agendamento } =
-            await supabase
-                .from("agendamentos")
-                .select("*")
-                .eq("id", id)
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "A sua conta está desativada.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a password antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        // Administradores têm acesso total.
+        // Funcionários precisam da permissão "marcacoes".
+        if (membro.role !== "admin") {
+            const {
+                data: permissaoMarcacoes,
+                error: permissaoError,
+            } = await supabase
+                .from("company_member_permissions")
+                .select("permission")
                 .eq(
-                    "empresa_id",
-                    membro.company_id
+                    "member_id",
+                    membro.id
+                )
+                .eq(
+                    "permission",
+                    "marcacoes"
                 )
                 .maybeSingle();
+
+            if (permissaoError) {
+                console.error(
+                    "Erro ao verificar permissão de marcações:",
+                    permissaoError
+                );
+
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não foi possível validar as permissões.",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+            if (!permissaoMarcacoes) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não tem permissão para cancelar marcações.",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
+        const empresaId =
+            membro.company_id;
+
+        // ---------------------------------------------------------
+        // Procurar marcação da própria empresa
+        // ---------------------------------------------------------
+
+        const {
+            data: agendamento,
+        } = await supabase
+            .from("agendamentos")
+            .select("*")
+            .eq("id", id)
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .maybeSingle();
 
         if (!agendamento) {
             return NextResponse.json(
                 {
-                    error: "Marcação não encontrada.",
+                    error:
+                        "Marcação não encontrada.",
                 },
                 {
                     status: 404,
@@ -76,9 +165,13 @@ export async function PATCH(
             );
         }
 
+        // ---------------------------------------------------------
+        // Validar estado atual
+        // ---------------------------------------------------------
+
         if (
             agendamento.estado ===
-                "cancelado"
+            "cancelado"
         ) {
             return NextResponse.json(
                 {
@@ -91,6 +184,10 @@ export async function PATCH(
             );
         }
 
+        // ---------------------------------------------------------
+        // Cancelar marcação
+        // ---------------------------------------------------------
+
         const {
             data: agendamentoAtualizado,
             error: atualizacaoError,
@@ -99,10 +196,13 @@ export async function PATCH(
             .update({
                 estado: "cancelado",
             })
-            .eq("id", id)
+            .eq(
+                "id",
+                id
+            )
             .eq(
                 "empresa_id",
-                membro.company_id
+                empresaId
             )
             .select("*")
             .single();

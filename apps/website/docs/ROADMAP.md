@@ -1,283 +1,410 @@
 # Nexora Booking — Roadmap
 
-## Objetivo
-
-Construir uma plataforma de gestão de reservas profissional da Nexora Tech, com gestão operacional, financeira, utilizadores, permissões e segurança.
+Este documento acompanha a evolução funcional e técnica do Nexora Booking.
 
 ---
 
-# Estado das etapas
-
-## 1 — Estrutura base
-
-**Estado:** CONCLUÍDO
-
-* Estrutura inicial do Booking.
-* Integração com Next.js.
-* Integração com Supabase.
-* Base da aplicação.
-
----
-
-## 2 — Empresas
-
-**Estado:** CONCLUÍDO
-
-* Estrutura de empresas.
-* Associação dos dados à empresa.
-* Identificação da empresa do utilizador.
-
----
-
-## 3 — Clientes
-
-**Estado:** CONCLUÍDO
-
-* Gestão de clientes.
-* Associação dos clientes às marcações.
-
----
-
-## 4 — Serviços
-
-**Estado:** CONCLUÍDO
-
-* Gestão de serviços.
-* Valores dos serviços.
-* Associação dos serviços às marcações.
-
----
-
-## 5 — Profissionais
-
-**Estado:** CONCLUÍDO
-
-* Gestão de profissionais.
-* Associação dos profissionais às marcações.
-
----
-
-## 6 — Agendamentos
-
-**Estado:** CONCLUÍDO
-
-* Criação de marcações.
-* Data e hora.
-* Cliente.
-* Serviço.
-* Profissional.
-* Estado da marcação.
-* Valor.
-* Notas.
-
-Estados suportados:
-
-* pendente
-* confirmado
-* concluido
-* cancelado
-
----
-
-## 7 — Gestão operacional
-
-**Estado:** CONCLUÍDO / EM REVISÃO**
-
-* Gestão das marcações.
-* Visualização dos estados.
-* Operações relacionadas com o Booking.
-
----
-
-## 8 — Dashboard
-
-**Estado:** CONCLUÍDO / EM REVISÃO**
-
-* Indicadores principais.
-* Dados operacionais.
-* Integração com os dados do Booking.
-
----
-
-# 9 — Financeiro
+# 9 — Área Financeira
 
 ## 9K.1 — Financeiro base
 
-**Estado:** CONCLUÍDO
+**Estado: CONCLUÍDO**
 
-* Cálculo da receita.
-* Cálculo do caixa.
-* Filtro por empresa.
-* Utilização do fuso horário da empresa.
-* Apenas `concluido` gera receita.
-* Cancelados não entram.
-* Confirmados não entram até serem concluídos.
+Implementado:
+
+- cálculo da receita;
+- utilização de `agendamentos.valor`;
+- filtro por empresa;
+- utilização do fuso horário da empresa;
+- somente `estado = 'concluido'` gera receita.
 
 ---
 
 ## 9K.2 — Histórico financeiro dos 12 meses
 
-## 9K.2 — Histórico financeiro dos 12 meses
-**Estado:** CONCLUÍDO
+**Estado: CONCLUÍDO**
 
-Implementado e testado:
+Implementado:
 
-- Histórico dos últimos 12 meses.
-- Meses sem movimentos apresentados como €0,00.
-- Receita mensal.
-- Quantidade de marcações concluídas.
-- Total dos últimos 12 meses.
-- Mês atual identificado.
-- Apenas `concluido` entra na receita.
-- Cancelados excluídos.
-- Confirmados excluídos até serem concluídos.
-- Respeito pelo fuso horário da empresa.
-- Build de produção validado.
-- Teste visual concluído.
+- últimos 12 meses;
+- meses sem movimentos;
+- receita mensal;
+- quantidade de concluídos;
+- total dos 12 meses;
+- mês atual identificado;
+- ordenação cronológica;
+- respeito pelo fuso horário da empresa;
+- somente concluídos entram na receita.
 
----
+Validação:
 
-Objetivo:
-
-Criar histórico financeiro mensal dos últimos 12 meses.
-
-Requisitos:
-
-* apresentar 12 meses;
-* incluir meses sem movimentos;
-* receita mensal;
-* número de marcações concluídas;
-* €0,00 quando não existir receita;
-* ordenação cronológica;
-* respeitar o fuso horário da empresa;
-* utilizar apenas marcações `concluido`.
+- Supabase validado;
+- build validado;
+- navegador validado.
 
 ---
 
 ## 9K.3 — Visão anual
 
-## 9K.3 — Visão anual
-**Estado:** EM DESENVOLVIMENTO ← ATUAL
+**Estado: CONCLUÍDO**
 
-Objetivo:
+Implementado:
 
-* total anual;
-* visão mensal;
-* indicadores anuais;
-* gráficos financeiros;
-* utilizar a mesma fonte de dados do 9K.2;
-* evitar duplicação da lógica.
+- seleção do ano;
+- navegação entre anos;
+- janeiro a dezembro;
+- receita anual;
+- número de marcações concluídas;
+- média mensal;
+- melhor mês com receita;
+- pior mês com receita;
+- meses sem receita apresentados como €0,00;
+- mesma regra financeira do histórico mensal.
 
 ---
 
 # 10 — Permissões e acessos
 
-**Estado:** PENDENTE
+**Estado: CONCLUÍDO**
 
-Objetivo:
+Foi implementado o modelo de acesso por empresa.
 
-Criar um sistema profissional de permissões.
+## Perfis
 
-A segurança deverá existir em:
+### Administrador
 
-### Interface
+Acesso completo à empresa.
 
-Mostrar apenas o que cada perfil deve utilizar.
+### Funcionário
 
-### Servidor/API
+Acesso apenas às permissões atribuídas.
 
-Impedir chamadas não autorizadas mesmo que o utilizador tente aceder diretamente à API.
+### Desativado
 
-### Supabase
+Sem acesso ao Booking.
 
-Aplicar RLS e políticas adequadas para impedir acesso indevido aos dados.
+---
 
-Objetivos:
+## Permissões
 
-* administrador/proprietário com acesso completo;
-* funcionários com acesso apenas ao necessário;
-* cartões administrativos exclusivos;
-* impedir acesso direto através de URL;
-* impedir manipulação através de chamadas à API.
+- `agenda`
+- `clientes`
+- `marcacoes`
+- `servicos`
+- `profissionais`
+- `disponibilidade`
+- `bloqueios`
+- `financeiro`
+- `configuracoes`
+- `equipa`
+
+---
+
+## Componentes de segurança
+
+Implementados:
+
+- `company_members`;
+- `company_member_permissions`;
+- controlo de `role`;
+- controlo de `is_active`;
+- controlo de `must_change_password`;
+- proteção por proxy;
+- proteção nas páginas;
+- proteção nas APIs;
+- validação de empresa;
+- validação de permissões;
+- RLS no Supabase.
+
+---
+
+## Primeiro acesso
+
+Novos funcionários podem ser obrigados a alterar a password através de:
+
+`must_change_password`
+
+O sistema bloqueia o acesso às áreas normais do Booking enquanto essa alteração estiver pendente.
 
 ---
 
 # 11 — Auditoria de segurança
 
-**Estado:** PENDENTE
+**Estado: CONCLUÍDO**
 
-Revisão completa do Booking.
+Foi realizada uma auditoria abrangente do Nexora Booking.
 
-Verificar:
+## Áreas auditadas
 
-* autenticação;
-* autorização;
-* páginas;
-* rotas;
-* APIs;
-* Supabase;
-* RLS;
-* políticas;
-* acesso direto por URL;
-* exposição de dados;
-* permissões dos utilizadores;
-* ações disponíveis por perfil;
-* variáveis de ambiente;
-* chaves e segredos;
-* possíveis bypasses de segurança.
+- autenticação;
+- autorização;
+- proxy;
+- páginas;
+- APIs;
+- RLS;
+- policies;
+- funções de segurança;
+- permissões;
+- isolamento por empresa;
+- acesso direto por URL;
+- controlo de funcionários;
+- primeiro acesso;
+- estado ativo/inativo.
+
+---
+
+## APIs auditadas
+
+Foram revistas as APIs de:
+
+- agendamentos;
+- cancelamento;
+- conclusão;
+- alteração de estado;
+- clientes;
+- serviços;
+- profissionais;
+- disponibilidade;
+- bloqueios;
+- configurações;
+- onboarding.
+
+As APIs foram revistas para garantir:
+
+- autenticação;
+- membro válido;
+- membro ativo;
+- `must_change_password`;
+- administrador ou permissão adequada;
+- empresa correta;
+- acesso ao recurso correto.
+
+---
+
+## RLS auditado
+
+Foram revistas as principais tabelas do Booking, incluindo:
+
+- `agendamentos`;
+- `bloqueios`;
+- `clientes`;
+- `companies`;
+- `company_ai_settings`;
+- `company_documents`;
+- `company_knowledge`;
+- `company_member_permissions`;
+- `company_members`;
+- `company_subscriptions`;
+- `product_subscriptions`;
+- `products`;
+- `profissionais`;
+- `profissionais_servicos`;
+- `servicos`;
+- `configuracoes_agendamento`;
+- `disponibilidade`.
+
+---
+
+## Teste com funcionário
+
+Foi realizado teste real com funcionário com permissões limitadas.
+
+Resultado:
+
+- Calendário acessível com `agenda`;
+- Clientes acessível com `clientes`;
+- Financeiro bloqueado sem `financeiro`;
+- outras áreas bloqueadas sem a respetiva permissão;
+- acesso direto por URL protegido;
+- Booking apresentado como ativo quando a configuração da empresa está ativa.
+
+---
+
+## Correção do estado do Booking
+
+Foi identificado e corrigido um problema no qual:
+
+- administrador via o Booking como ativo;
+- funcionário via o Booking como suspenso.
+
+A causa estava na leitura de `configuracoes_agendamento`, que estava protegida pela permissão `configuracoes`.
+
+Foi criada a função:
+
+`public.get_booking_status(uuid)`
+
+A função permite consultar de forma segura apenas o estado global do Booking para membros ativos da respetiva empresa.
+
+Problema validado como resolvido.
+
+---
+
+## Hardening futuro
+
+A auditoria funcional foi concluída.
+
+Permanecem identificados alguns pontos de hardening:
+
+1. `products` possui RLS ativo sem policies.
+2. Leaked Password Protection ainda não está ativado.
+3. O fluxo `onboarding/company` deve ser revisto relativamente a membros inativos.
+4. `complete_first_login()` pode ser endurecida para validar mais rigorosamente a alteração efetiva da password.
+
+Estes pontos ficam registados para a revisão de estabilização e preparação para produção.
 
 ---
 
 # 12 — Revisão geral e estabilização
 
-**Estado:** PENDENTE
+**Estado: PRÓXIMA ETAPA**
 
-Depois das funcionalidades principais:
+Objetivo:
 
-* revisão do código;
-* correção de bugs;
-* validação dos fluxos;
-* testes;
-* revisão da interface;
-* performance;
-* segurança;
-* preparação para produção.
+Fazer a revisão final do Nexora Booking antes da preparação para produção.
 
 ---
 
-# Regra de trabalho
+## 12.1 — Revisão funcional
 
-Cada etapa deve seguir:
+Verificar:
 
-1. Implementar.
-2. Testar.
-3. Corrigir.
-4. Confirmar funcionamento.
-5. Atualizar `CURRENT-STATE.md`.
-6. Atualizar `CHANGELOG.md`.
-7. Criar commit Git.
+- Login;
+- primeiro acesso;
+- alteração de password;
+- logout;
+- recuperação de acesso;
+- dashboard;
+- calendário;
+- marcações;
+- clientes;
+- serviços;
+- profissionais;
+- disponibilidade;
+- bloqueios;
+- configurações;
+- equipa;
+- financeiro;
+- onboarding.
 
-Uma etapa só é considerada **CONCLUÍDA** depois destes passos.
+---
 
-### Calendário — melhorias de navegação e detalhes
+## 12.2 — Revisão de permissões
 
-- [x] Vista diária e semanal
-- [x] Navegação entre dias/semanas
-- [x] Clique no cabeçalho de um dia semanal para abrir a vista diária
-- [x] Clique numa marcação para abrir detalhes
-- [x] Modal compacto de detalhes da marcação
-- [x] Ações de gestão integradas no modal
-- [x] Respeito pela permissão `marcacoes`
-- [x] Proteção da área de Clientes pela permissão `clientes`
+Testar sistematicamente:
+
+### Administrador
+
+Acesso a todas as áreas.
+
+### Funcionário
+
+Acesso apenas às permissões atribuídas.
+
+### Funcionário sem permissão
+
+Bloqueio através de:
+
+- interface;
+- URL direta;
+- API.
+
+### Funcionário desativado
+
+Bloqueio total do Booking.
+
+---
+
+## 12.3 — Hardening de segurança
+
+Rever:
+
+- `products`;
+- Leaked Password Protection;
+- `onboarding/company`;
+- `complete_first_login()`;
+- funções `SECURITY DEFINER`;
+- `GRANT EXECUTE`;
+- RLS;
+- policies;
+- exposição de dados;
+- isolamento entre empresas.
+
+---
+
+## 12.4 — Revisão de interface
+
+Verificar:
+
+- desktop;
+- tablet;
+- mobile;
+- navegação;
+- mensagens de erro;
+- estados vazios;
+- carregamentos;
+- modais;
+- formulários;
+- consistência visual.
+
+---
+
+## 12.5 — Revisão técnica
+
+Verificar:
+
+- `npm run build`;
+- erros TypeScript;
+- warnings relevantes;
+- logs;
+- variáveis de ambiente;
+- dependências;
+- rotas;
+- APIs;
+- performance;
+- código duplicado.
+
+---
+
+## 12.6 — Preparação para produção
+
+Antes do lançamento:
+
+- validar Supabase;
+- validar autenticação;
+- validar RLS;
+- validar domínio;
+- validar Netlify;
+- validar variáveis de ambiente;
+- executar testes finais;
+- criar backup;
+- criar commit final;
+- preparar deploy.
+
+---
+
+# Checklist geral
+
+- [x] Financeiro base
+- [x] Histórico financeiro 12 meses
+- [x] Visão anual
+- [x] Permissões
+- [x] Proteção de páginas
+- [x] Proteção de APIs
+- [x] RLS auditado
+- [x] Teste com funcionário
+- [x] Estado do Booking corrigido
+- [x] Auditoria funcional de segurança
+- [ ] Revisão geral
+- [ ] Hardening final
+- [ ] Testes finais
+- [ ] Preparação para produção
 
 ---
 
 # Etapa atual
 
-# Etapa atual
+**Etapa 12 — Revisão geral e estabilização**
 
-**9K.3 — Visão anual**
+Próximo objetivo:
 
-Próximo objetivo imediato:
-
-Implementar e testar a visão financeira anual utilizando a base criada no 9K.2.
+**Revisar, testar e preparar o Nexora Booking para produção.**

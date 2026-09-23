@@ -67,7 +67,9 @@ export async function PATCH(
             error: membroError,
         } = await supabase
             .from("company_members")
-            .select("id, company_id, role")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
             .eq("user_id", user.id)
             .limit(1)
             .single();
@@ -77,6 +79,30 @@ export async function PATCH(
                 {
                     error:
                         "Não foi encontrada uma empresa associada ao utilizador.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
                 },
                 {
                     status: 403,

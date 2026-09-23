@@ -12,7 +12,8 @@ type CriarAgendamentoBody = {
 
 export async function POST(request: Request) {
     try {
-        const supabase = await createSupabaseServerClient();
+        const supabase =
+            await createSupabaseServerClient();
 
         const {
             data: { user },
@@ -29,6 +30,10 @@ export async function POST(request: Request) {
             );
         }
 
+        // ---------------------------------------------------------
+        // Dados recebidos
+        // ---------------------------------------------------------
+
         const body =
             (await request.json()) as CriarAgendamentoBody;
 
@@ -41,7 +46,8 @@ export async function POST(request: Request) {
         ) {
             return NextResponse.json(
                 {
-                    error: "Cliente, serviço, profissional, início e fim são obrigatórios.",
+                    error:
+                        "Cliente, serviço, profissional, início e fim são obrigatórios.",
                 },
                 {
                     status: 400,
@@ -49,19 +55,27 @@ export async function POST(request: Request) {
             );
         }
 
-        // Empresa associada ao utilizador
-        const { data: membro, error: membroError } =
-            await supabase
-                .from("company_members")
-                .select("company_id")
-                .eq("user_id", user.id)
-                .limit(1)
-                .single();
+        // ---------------------------------------------------------
+        // Membro, empresa e permissões
+        // ---------------------------------------------------------
+
+        const {
+            data: membro,
+            error: membroError,
+        } = await supabase
+            .from("company_members")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
+            .eq("user_id", user.id)
+            .limit(1)
+            .single();
 
         if (membroError || !membro) {
             return NextResponse.json(
                 {
-                    error: "Não foi encontrada uma empresa associada ao utilizador.",
+                    error:
+                        "Não foi encontrada uma empresa associada ao utilizador.",
                 },
                 {
                     status: 403,
@@ -69,20 +83,103 @@ export async function POST(request: Request) {
             );
         }
 
-        const empresaId = membro.company_id;
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "A sua conta está desativada.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
 
-        // Verifica se o Booking está ativo
-        const { data: configuracao, error: configuracaoError } =
-            await supabase
-                .from("configuracoes_agendamento")
-                .select("agendamento_ativo")
-                .eq("empresa_id", empresaId)
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a password antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId =
+            membro.company_id;
+
+        // Administradores têm acesso total.
+        // Funcionários precisam da permissão "marcacoes".
+        if (membro.role !== "admin") {
+            const {
+                data: permissaoMarcacoes,
+                error: permissaoError,
+            } = await supabase
+                .from("company_member_permissions")
+                .select("permission")
+                .eq(
+                    "member_id",
+                    membro.id
+                )
+                .eq(
+                    "permission",
+                    "marcacoes"
+                )
                 .maybeSingle();
+
+            if (permissaoError) {
+                console.error(
+                    "Erro ao verificar permissão de marcações:",
+                    permissaoError
+                );
+
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não foi possível validar as permissões.",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+            if (!permissaoMarcacoes) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não tem permissão para criar marcações.",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
+        // ---------------------------------------------------------
+        // Verifica se o Booking está ativo
+        // ---------------------------------------------------------
+
+        const {
+            data: configuracao,
+            error: configuracaoError,
+        } = await supabase
+            .from("configuracoes_agendamento")
+            .select("agendamento_ativo")
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .maybeSingle();
 
         if (configuracaoError) {
             return NextResponse.json(
                 {
-                    error: "Não foi possível verificar a configuração do Booking.",
+                    error:
+                        "Não foi possível verificar a configuração do Booking.",
                 },
                 {
                     status: 500,
@@ -93,7 +190,8 @@ export async function POST(request: Request) {
         if (!configuracao?.agendamento_ativo) {
             return NextResponse.json(
                 {
-                    error: "O Booking está suspenso para esta empresa.",
+                    error:
+                        "O Booking está suspenso para esta empresa.",
                 },
                 {
                     status: 403,
@@ -101,18 +199,30 @@ export async function POST(request: Request) {
             );
         }
 
-        // Confirma que cliente, serviço e profissional pertencem à empresa
-        const { data: cliente } = await supabase
+        // ---------------------------------------------------------
+        // Confirmar que o cliente pertence à empresa
+        // ---------------------------------------------------------
+
+        const {
+            data: cliente,
+        } = await supabase
             .from("clientes")
             .select("id")
-            .eq("id", body.cliente_id)
-            .eq("empresa_id", empresaId)
+            .eq(
+                "id",
+                body.cliente_id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
             .maybeSingle();
 
         if (!cliente) {
             return NextResponse.json(
                 {
-                    error: "Cliente inválido.",
+                    error:
+                        "Cliente inválido.",
                 },
                 {
                     status: 400,
@@ -120,57 +230,107 @@ export async function POST(request: Request) {
             );
         }
 
-        const { data: servico } = await supabase
+        // ---------------------------------------------------------
+        // Confirmar que o serviço pertence à empresa
+        // ---------------------------------------------------------
+
+        const {
+            data: servico,
+        } = await supabase
             .from("servicos")
             .select("id")
-            .eq("id", body.servico_id)
-            .eq("empresa_id", empresaId)
-            .eq("ativo", true)
+            .eq(
+                "id",
+                body.servico_id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .eq(
+                "ativo",
+                true
+            )
             .maybeSingle();
 
         if (!servico) {
             return NextResponse.json(
                 {
-                    error: "Serviço inválido ou inativo.",
+                    error:
+                        "Serviço inválido ou inativo.",
                 },
                 {
-                    status: 400,
+                    status: 400
                 }
             );
         }
 
-        const { data: profissional } = await supabase
+        // ---------------------------------------------------------
+        // Confirmar que o profissional pertence à empresa
+        // ---------------------------------------------------------
+
+        const {
+            data: profissional,
+        } = await supabase
             .from("profissionais")
             .select("id")
-            .eq("id", body.profissional_id)
-            .eq("empresa_id", empresaId)
-            .eq("ativo", true)
+            .eq(
+                "id",
+                body.profissional_id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
+            .eq(
+                "ativo",
+                true
+            )
             .maybeSingle();
 
         if (!profissional) {
             return NextResponse.json(
                 {
-                    error: "Profissional inválido ou inativo.",
+                    error:
+                        "Profissional inválido ou inativo.",
                 },
                 {
-                    status: 400,
+                    status: 400
                 }
             );
         }
 
-        // A validação final de disponibilidade, duração,
-        // antecedência, bloqueios e capacidade é feita
-        // pela função PostgreSQL criar_agendamento().
-        const { data, error } = await supabase.rpc(
+        // ---------------------------------------------------------
+        // Criar marcação
+        //
+        // A função PostgreSQL valida:
+        // - disponibilidade
+        // - duração
+        // - antecedência
+        // - bloqueios
+        // - capacidade
+        // ---------------------------------------------------------
+
+        const {
+            data,
+            error,
+        } = await supabase.rpc(
             "criar_agendamento",
             {
-                p_empresa_id: empresaId,
-                p_cliente_id: body.cliente_id,
-                p_servico_id: body.servico_id,
-                p_profissional_id: body.profissional_id,
-                p_inicio: body.inicio,
-                p_fim: body.fim,
-                p_notas: body.notas ?? null,
+                p_empresa_id:
+                    empresaId,
+                p_cliente_id:
+                    body.cliente_id,
+                p_servico_id:
+                    body.servico_id,
+                p_profissional_id:
+                    body.profissional_id,
+                p_inicio:
+                    body.inicio,
+                p_fim:
+                    body.fim,
+                p_notas:
+                    body.notas ?? null,
             }
         );
 
@@ -204,7 +364,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json(
             {
-                error: "Ocorreu um erro interno ao criar a marcação.",
+                error:
+                    "Ocorreu um erro interno ao criar a marcação.",
             },
             {
                 status: 500,

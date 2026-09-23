@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
-async function obterEmpresaDoUtilizador() {
+type RouteContext = {
+    params: Promise<{
+        id: string;
+    }>;
+};
+
+async function obterAcessoBloqueios() {
     const supabase =
         await createSupabaseServerClient();
 
@@ -13,29 +19,80 @@ async function obterEmpresaDoUtilizador() {
         return {
             supabase,
             user: null,
-            empresaId: null,
+            membro: null,
+            autorizado: false,
         };
     }
 
-    const { data: membro } = await supabase
+    const {
+        data: membro,
+        error: membroError,
+    } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
+    if (membroError || !membro) {
+        return {
+            supabase,
+            user,
+            membro: null,
+            autorizado: false,
+        };
+    }
+
+    if (
+        !membro.is_active ||
+        membro.must_change_password
+    ) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
+        };
+    }
+
+    if (membro.role === "admin") {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: true,
+        };
+    }
+
+    const {
+        data: permissao,
+        error: permissaoError,
+    } = await supabase
+        .from("company_member_permissions")
+        .select("id")
+        .eq("member_id", membro.id)
+        .eq("permission", "bloqueios")
+        .limit(1)
+        .maybeSingle();
+
+    if (permissaoError || !permissao) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
+        };
+    }
+
     return {
         supabase,
         user,
-        empresaId: membro?.company_id ?? null,
+        membro,
+        autorizado: true,
     };
 }
-
-type RouteContext = {
-    params: Promise<{
-        id: string;
-    }>;
-};
 
 export async function PATCH(
     request: Request,
@@ -47,8 +104,9 @@ export async function PATCH(
         const {
             supabase,
             user,
-            empresaId,
-        } = await obterEmpresaDoUtilizador();
+            membro,
+            autorizado,
+        } = await obterAcessoBloqueios();
 
         if (!user) {
             return NextResponse.json(
@@ -59,7 +117,7 @@ export async function PATCH(
             );
         }
 
-        if (!empresaId) {
+        if (!membro?.company_id) {
             return NextResponse.json(
                 {
                     error: "Empresa não encontrada.",
@@ -68,10 +126,43 @@ export async function PATCH(
             );
         }
 
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir bloqueios.",
+                },
+                { status: 403 }
+            );
+        }
+
+        const empresaId = membro.company_id;
+
         if (!id) {
             return NextResponse.json(
                 {
-                    error: "Bloqueio não identificado.",
+                    error:
+                        "Bloqueio não identificado.",
                 },
                 { status: 400 }
             );
@@ -107,7 +198,8 @@ export async function PATCH(
         ) {
             return NextResponse.json(
                 {
-                    error: "Profissional, início e fim são obrigatórios.",
+                    error:
+                        "Profissional, início e fim são obrigatórios.",
                 },
                 { status: 400 }
             );
@@ -126,7 +218,8 @@ export async function PATCH(
         ) {
             return NextResponse.json(
                 {
-                    error: "As datas fornecidas são inválidas.",
+                    error:
+                        "As datas fornecidas são inválidas.",
                 },
                 { status: 400 }
             );
@@ -135,26 +228,29 @@ export async function PATCH(
         if (inicioData >= fimData) {
             return NextResponse.json(
                 {
-                    error: "A data/hora de fim deve ser posterior ao início.",
+                    error:
+                        "A data/hora de fim deve ser posterior ao início.",
                 },
                 { status: 400 }
             );
         }
 
-        const { data: bloqueio } =
-            await supabase
-                .from("bloqueios")
-                .select(
-                    "id, empresa_id, profissional_id, inicio, fim, motivo"
-                )
-                .eq("id", id)
-                .eq("empresa_id", empresaId)
-                .single();
+        const {
+            data: bloqueio,
+        } = await supabase
+            .from("bloqueios")
+            .select(
+                "id, empresa_id, profissional_id, inicio, fim, motivo"
+            )
+            .eq("id", id)
+            .eq("empresa_id", empresaId)
+            .single();
 
         if (!bloqueio) {
             return NextResponse.json(
                 {
-                    error: "Bloqueio não encontrado.",
+                    error:
+                        "Bloqueio não encontrado.",
                 },
                 { status: 404 }
             );
@@ -165,7 +261,9 @@ export async function PATCH(
             error: profissionalError,
         } = await supabase
             .from("profissionais")
-            .select("id, nome, ativo")
+            .select(
+                "id, nome, ativo"
+            )
             .eq("id", profissionalId)
             .eq("empresa_id", empresaId)
             .single();
@@ -176,7 +274,8 @@ export async function PATCH(
         ) {
             return NextResponse.json(
                 {
-                    error: "Profissional não encontrado.",
+                    error:
+                        "Profissional não encontrado.",
                 },
                 { status: 404 }
             );
@@ -185,33 +284,36 @@ export async function PATCH(
         if (!profissional.ativo) {
             return NextResponse.json(
                 {
-                    error: "O profissional selecionado está inativo.",
+                    error:
+                        "O profissional selecionado está inativo.",
                 },
                 { status: 400 }
             );
         }
 
-        const { data: bloqueioAtualizado, error } =
-            await supabase
-                .from("bloqueios")
-                .update({
-                    profissional_id:
-                        profissionalId,
-                    inicio:
-                        inicioData.toISOString(),
-                    fim:
-                        fimData.toISOString(),
-                    motivo:
-                        motivo || null,
-                    updated_at:
-                        new Date().toISOString(),
-                })
-                .eq("id", id)
-                .eq("empresa_id", empresaId)
-                .select(
-                    "id, empresa_id, profissional_id, inicio, fim, motivo, updated_at"
-                )
-                .single();
+        const {
+            data: bloqueioAtualizado,
+            error,
+        } = await supabase
+            .from("bloqueios")
+            .update({
+                profissional_id:
+                    profissionalId,
+                inicio:
+                    inicioData.toISOString(),
+                fim:
+                    fimData.toISOString(),
+                motivo:
+                    motivo || null,
+                updated_at:
+                    new Date().toISOString(),
+            })
+            .eq("id", id)
+            .eq("empresa_id", empresaId)
+            .select(
+                "id, empresa_id, profissional_id, inicio, fim, motivo, updated_at"
+            )
+            .single();
 
         if (error) {
             console.error(
@@ -221,7 +323,8 @@ export async function PATCH(
 
             return NextResponse.json(
                 {
-                    error: "Não foi possível atualizar o bloqueio.",
+                    error:
+                        "Não foi possível atualizar o bloqueio.",
                 },
                 { status: 500 }
             );
@@ -239,13 +342,14 @@ export async function PATCH(
 
         return NextResponse.json(
             {
-                error: "Ocorreu um erro inesperado.",
+                error:
+                    "Ocorreu um erro inesperado.",
             },
             { status: 500 }
         );
     }
-    
 }
+
 export async function DELETE(
     request: Request,
     { params }: RouteContext
@@ -256,8 +360,9 @@ export async function DELETE(
         const {
             supabase,
             user,
-            empresaId,
-        } = await obterEmpresaDoUtilizador();
+            membro,
+            autorizado,
+        } = await obterAcessoBloqueios();
 
         if (!user) {
             return NextResponse.json(
@@ -268,46 +373,83 @@ export async function DELETE(
             );
         }
 
-        if (!empresaId) {
+        if (!membro?.company_id) {
             return NextResponse.json(
                 {
-                    error: "Empresa não encontrada.",
+                    error:
+                        "Empresa não encontrada.",
                 },
                 { status: 403 }
             );
         }
 
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                { status: 403 }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir bloqueios.",
+                },
+                { status: 403 }
+            );
+        }
+
+        const empresaId = membro.company_id;
+
         if (!id) {
             return NextResponse.json(
                 {
-                    error: "Bloqueio não identificado.",
+                    error:
+                        "Bloqueio não identificado.",
                 },
                 { status: 400 }
             );
         }
 
-        const { data: bloqueio } =
-            await supabase
-                .from("bloqueios")
-                .select("id")
-                .eq("id", id)
-                .eq("empresa_id", empresaId)
-                .single();
+        const {
+            data: bloqueio,
+        } = await supabase
+            .from("bloqueios")
+            .select("id")
+            .eq("id", id)
+            .eq("empresa_id", empresaId)
+            .single();
 
         if (!bloqueio) {
             return NextResponse.json(
                 {
-                    error: "Bloqueio não encontrado.",
+                    error:
+                        "Bloqueio não encontrado.",
                 },
                 { status: 404 }
             );
         }
 
-        const { error } = await supabase
-            .from("bloqueios")
-            .delete()
-            .eq("id", id)
-            .eq("empresa_id", empresaId);
+        const { error } =
+            await supabase
+                .from("bloqueios")
+                .delete()
+                .eq("id", id)
+                .eq("empresa_id", empresaId);
 
         if (error) {
             console.error(
@@ -317,7 +459,8 @@ export async function DELETE(
 
             return NextResponse.json(
                 {
-                    error: "Não foi possível eliminar o bloqueio.",
+                    error:
+                        "Não foi possível eliminar o bloqueio.",
                 },
                 { status: 500 }
             );
@@ -334,7 +477,8 @@ export async function DELETE(
 
         return NextResponse.json(
             {
-                error: "Ocorreu um erro inesperado.",
+                error:
+                    "Ocorreu um erro inesperado.",
             },
             { status: 500 }
         );

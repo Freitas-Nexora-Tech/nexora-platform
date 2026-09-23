@@ -14,19 +14,107 @@ type EditarClienteBody = {
     notas?: string | null;
 };
 
+async function obterAcessoClientes() {
+    const supabase =
+        await createSupabaseServerClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+        return {
+            supabase,
+            user: null,
+            membro: null,
+            autorizado: false,
+        };
+    }
+
+    const {
+        data: membro,
+        error: membroError,
+    } = await supabase
+        .from("company_members")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+    if (membroError || !membro) {
+        return {
+            supabase,
+            user,
+            membro: null,
+            autorizado: false,
+        };
+    }
+
+    if (
+        !membro.is_active ||
+        membro.must_change_password
+    ) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
+        };
+    }
+
+    if (membro.role === "admin") {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: true,
+        };
+    }
+
+    const {
+        data: permissao,
+        error: permissaoError,
+    } = await supabase
+        .from("company_member_permissions")
+        .select("id")
+        .eq("member_id", membro.id)
+        .eq("permission", "clientes")
+        .limit(1)
+        .maybeSingle();
+
+    if (permissaoError || !permissao) {
+        return {
+            supabase,
+            user,
+            membro,
+            autorizado: false,
+        };
+    }
+
+    return {
+        supabase,
+        user,
+        membro,
+        autorizado: true,
+    };
+}
+
 export async function PATCH(
     request: Request,
     { params }: Props
 ) {
     try {
-        const { id: clienteId } = await params;
-
-        const supabase =
-            await createSupabaseServerClient();
+        const { id: clienteId } =
+            await params;
 
         const {
-            data: { user },
-        } = await supabase.auth.getUser();
+            supabase,
+            user,
+            membro,
+            autorizado,
+        } = await obterAcessoClientes();
 
         if (!user) {
             return NextResponse.json(
@@ -39,17 +127,11 @@ export async function PATCH(
             );
         }
 
-        const { data: membro } = await supabase
-            .from("company_members")
-            .select("company_id")
-            .eq("user_id", user.id)
-            .limit(1)
-            .single();
-
         if (!membro?.company_id) {
             return NextResponse.json(
                 {
-                    error: "Empresa não encontrada.",
+                    error:
+                        "Empresa não encontrada.",
                 },
                 {
                     status: 403,
@@ -57,12 +139,50 @@ export async function PATCH(
             );
         }
 
-        const empresaId = membro.company_id;
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir clientes.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId =
+            membro.company_id;
 
         const body =
             (await request.json()) as EditarClienteBody;
 
-        const nome = body.nome?.trim();
+        const nome =
+            body.nome?.trim();
 
         if (!nome) {
             return NextResponse.json(
@@ -76,17 +196,19 @@ export async function PATCH(
             );
         }
 
-        const { data: cliente } = await supabase
-            .from("clientes")
-            .select("id")
-            .eq("id", clienteId)
-            .eq("empresa_id", empresaId)
-            .single();
+        const { data: cliente } =
+            await supabase
+                .from("clientes")
+                .select("id")
+                .eq("id", clienteId)
+                .eq("empresa_id", empresaId)
+                .single();
 
         if (!cliente) {
             return NextResponse.json(
                 {
-                    error: "Cliente não encontrado.",
+                    error:
+                        "Cliente não encontrado.",
                 },
                 {
                     status: 404,
@@ -102,11 +224,14 @@ export async function PATCH(
             .update({
                 nome,
                 email:
-                    body.email?.trim() || null,
+                    body.email?.trim() ||
+                    null,
                 telefone:
-                    body.telefone?.trim() || null,
+                    body.telefone?.trim() ||
+                    null,
                 notas:
-                    body.notas?.trim() || null,
+                    body.notas?.trim() ||
+                    null,
             })
             .eq("id", clienteId)
             .eq("empresa_id", empresaId)
@@ -134,7 +259,8 @@ export async function PATCH(
 
         return NextResponse.json({
             success: true,
-            cliente: clienteAtualizado,
+            cliente:
+                clienteAtualizado,
         });
     } catch (error) {
         console.error(
@@ -152,21 +278,22 @@ export async function PATCH(
             }
         );
     }
-      
 }
+
 export async function DELETE(
     request: Request,
     { params }: Props
 ) {
     try {
-        const { id: clienteId } = await params;
-
-        const supabase =
-            await createSupabaseServerClient();
+        const { id: clienteId } =
+            await params;
 
         const {
-            data: { user },
-        } = await supabase.auth.getUser();
+            supabase,
+            user,
+            membro,
+            autorizado,
+        } = await obterAcessoClientes();
 
         if (!user) {
             return NextResponse.json(
@@ -179,17 +306,11 @@ export async function DELETE(
             );
         }
 
-        const { data: membro } = await supabase
-            .from("company_members")
-            .select("company_id")
-            .eq("user_id", user.id)
-            .limit(1)
-            .single();
-
         if (!membro?.company_id) {
             return NextResponse.json(
                 {
-                    error: "Empresa não encontrada.",
+                    error:
+                        "Empresa não encontrada.",
                 },
                 {
                     status: 403,
@@ -197,19 +318,58 @@ export async function DELETE(
             );
         }
 
-        const empresaId = membro.company_id;
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
 
-        const { data: cliente } = await supabase
-            .from("clientes")
-            .select("id")
-            .eq("id", clienteId)
-            .eq("empresa_id", empresaId)
-            .single();
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                {
+                    status: 403
+                }
+            );
+        }
+
+        if (!autorizado) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Não tem permissão para gerir clientes.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        const empresaId =
+            membro.company_id;
+
+        const { data: cliente } =
+            await supabase
+                .from("clientes")
+                .select("id")
+                .eq("id", clienteId)
+                .eq("empresa_id", empresaId)
+                .single();
 
         if (!cliente) {
             return NextResponse.json(
                 {
-                    error: "Cliente não encontrado.",
+                    error:
+                        "Cliente não encontrado.",
                 },
                 {
                     status: 404,
@@ -217,15 +377,17 @@ export async function DELETE(
             );
         }
 
-        const { count, error: verificacaoError } =
-            await supabase
-                .from("agendamentos")
-                .select("id", {
-                    count: "exact",
-                    head: true,
-                })
-                .eq("cliente_id", clienteId)
-                .eq("empresa_id", empresaId);
+        const {
+            count,
+            error: verificacaoError,
+        } = await supabase
+            .from("agendamentos")
+            .select("id", {
+                count: "exact",
+                head: true,
+            })
+            .eq("cliente_id", clienteId)
+            .eq("empresa_id", empresaId);
 
         if (verificacaoError) {
             console.error(
@@ -256,7 +418,9 @@ export async function DELETE(
             );
         }
 
-        const { error: eliminarError } = await supabase
+        const {
+            error: eliminarError,
+        } = await supabase
             .from("clientes")
             .delete()
             .eq("id", clienteId)

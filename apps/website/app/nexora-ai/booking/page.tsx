@@ -54,14 +54,21 @@ export default async function NexoraBookingPage() {
         redirect("/booking/login");
     }
 
-    // Configuração do Booking
-    const { data: configuracao } = await supabase
-        .from("configuracoes_agendamento")
-        .select(
-            "agendamento_ativo, fuso_horario, intervalo_marcacao_minutos, antecedencia_minima_minutos, antecedencia_maxima_dias, capacidade_por_horario"
-        )
-        .eq("empresa_id", empresa.id)
-        .maybeSingle();
+    // Estado do Booking: leitura segura para qualquer membro ativo da empresa.
+    // As restantes configurações continuam protegidas pela permissão "configuracoes".
+    const { data: estadoBooking } = await supabase.rpc("get_booking_status", {
+        p_company_id: empresa.id,
+    });
+
+    const { data: configuracao } = access.can("configuracoes")
+        ? await supabase
+              .from("configuracoes_agendamento")
+              .select(
+                  "agendamento_ativo, fuso_horario, intervalo_marcacao_minutos, antecedencia_minima_minutos, antecedencia_maxima_dias, capacidade_por_horario"
+              )
+              .eq("empresa_id", empresa.id)
+              .maybeSingle()
+        : { data: null };
 
     // Contagens
     const { count: servicosCount } = access.can("servicos")
@@ -186,7 +193,7 @@ export default async function NexoraBookingPage() {
 
                             <div
                                 className={
-                                    configuracao?.agendamento_ativo
+                                    estadoBooking
                                         ? "shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-4"
                                         : "shrink-0 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4"
                                 }
@@ -195,7 +202,7 @@ export default async function NexoraBookingPage() {
                                     Estado do Booking
                                 </p>
 
-                                {configuracao?.agendamento_ativo ? (
+                                {estadoBooking ? (
                                     <p className="mt-1 font-bold text-emerald-400">
                                         ● Agendamentos ativos
                                     </p>

@@ -1,217 +1,436 @@
-# Nexora Booking — Estado Atual
+# Nexora Booking — Current State
 
 ## Projeto
 
-**Nome:** Nexora Booking
-**Plataforma:** Nexora Tech
-**Stack principal:** Next.js + TypeScript + Supabase
+O Nexora Booking é a plataforma de gestão de reservas da Nexora Tech.
 
-## Estado atual
+Tecnologias principais:
 
-**Etapa atual:** 9K.3 — Visão anual
-
-**Data da última atualização:** 14/09/2026
+- Next.js
+- TypeScript
+- Supabase
+- Git / GitHub
+- Netlify
 
 ---
 
-## 9 — Área Financeira
+# Estado atual
+
+## Financeiro
 
 ### 9K.1 — Financeiro base
 
-Estado: **CONCLUÍDO**
+**Estado:** CONCLUÍDO
 
-Funcionalidades existentes:
+Implementado:
 
-* Área financeira do Booking.
-* Leitura dos dados da tabela `agendamentos`.
-* Identificação da empresa através de `empresa_id`.
-* Utilização do fuso horário da empresa.
-* Cálculo de valores financeiros.
-* Separação dos estados das marcações.
-* Apenas marcações com estado `concluido` entram na receita/caixa.
-* Marcações `cancelado` não entram na receita.
-* Marcações `confirmado` ainda não entram na receita.
-* Valores financeiros utilizam o campo `valor`.
-
-### 9K.2 — Histórico financeiro dos 12 meses
-
-Estado: **CONCLUÍDO**
-
-Implementado e testado:
-
-- Histórico dos últimos 12 meses.
-- Meses sem movimentos apresentados como €0,00.
-- Receita mensal.
-- Quantidade de marcações concluídas.
-- Total dos últimos 12 meses.
-- Mês atual identificado.
-- Apenas marcações `concluido` entram na receita.
-- Cancelados excluídos.
-- Confirmados excluídos até serem concluídos.
-- Cálculo respeitando o fuso horário da empresa.
-- Build de produção validado com sucesso.
-- Teste visual no navegador concluído com sucesso.
-
-Objetivo:
-
-Criar uma visão mensal dos últimos 12 meses, incluindo meses sem movimentos.
-
-Cada mês deverá apresentar:
-
-* mês e ano;
-* número de marcações concluídas;
-* receita total;
-* €0,00 quando não existirem movimentos.
-
-Regras:
-
-* Somente `estado = 'concluido'` gera receita.
-* Cancelamentos não geram receita.
-* Marcações confirmadas não geram receita até serem concluídas.
-* O cálculo deve respeitar o fuso horário da empresa.
-* Os 12 meses devem aparecer mesmo quando a receita for zero.
-* A ordenação deve ser cronológica.
-
-### 9K.3 — Visão anual
-
-Estado: **EM DESENVOLVIMENTO**
-
-Será construída sobre a base de dados e lógica criada no 9K.2.
-
-Objetivo:
-
-* visão financeira anual;
-* total anual;
-* comparação mensal;
-* utilização dos mesmos dados do histórico de 12 meses;
-* evitar duplicação da lógica financeira.
+- cálculo da receita;
+- cálculo do caixa;
+- filtro por empresa;
+- utilização do fuso horário da empresa;
+- apenas marcações `concluido` geram receita;
+- marcações `cancelado` não entram;
+- marcações `confirmado` não entram até serem concluídas;
+- marcações `pendente` não entram.
 
 ---
 
-## Base de dados
+## 9K.2 — Histórico financeiro dos 12 meses
 
-Projeto Supabase ativo.
+**Estado:** CONCLUÍDO
 
-Tabela principal utilizada no financeiro:
+Implementado e validado:
 
-`public.agendamentos`
-
-Campos relevantes confirmados:
-
-* `id` — uuid
-* `empresa_id` — uuid
-* `cliente_id` — uuid
-* `servico_id` — uuid
-* `profissional_id` — uuid
-* `inicio` — timestamp with time zone
-* `fim` — timestamp with time zone
-* `estado` — text
-* `notas` — text
-* `created_at` — timestamp with time zone
-* `updated_at` — timestamp with time zone
-* `valor` — numeric
-
-Estados atualmente observados:
-
-* `pendente`
-* `confirmado`
-* `concluido`
-* `cancelado`
-
-Dados financeiros atualmente existentes no ambiente:
-
-* concluído: 3 marcações / €100,00
-* confirmado: 4 marcações / €140,00
-* cancelado: 2 marcações / €80,00
-
-Regra financeira confirmada:
-
-**Somente concluídos entram na receita.**
+- histórico dos últimos 12 meses;
+- meses sem movimentos apresentados como €0,00;
+- receita mensal;
+- quantidade de marcações concluídas;
+- total dos últimos 12 meses;
+- identificação do mês atual;
+- apenas `concluido` entra na receita;
+- cancelados excluídos;
+- confirmados excluídos até serem concluídos;
+- respeito pelo fuso horário da empresa;
+- build de produção validado;
+- teste visual concluído.
 
 ---
 
-## Ficheiro financeiro principal
+## 9K.3 — Visão anual
 
-`app/nexora-ai/booking/financeiro/page.tsx`
+**Estado:** CONCLUÍDO
 
-Este ficheiro já contém a lógica financeira base e será utilizado como ponto de partida para o 9K.2.
+Implementado:
 
----
-
-## Próximas etapas
-
-### 9K.2
-
-Histórico financeiro dos 12 meses.
-
-### 9K.3
-
-Visão anual.
-
-### 10
-
-Permissões e acessos.
-
-As permissões deverão ser implementadas em três níveis:
-
-1. Interface.
-2. Servidor/API.
-3. Supabase/RLS.
-
-Objetivo:
-
-* cartões/áreas administrativas exclusivos do administrador/proprietário;
-* funcionários apenas com acesso ao necessário para o trabalho;
-* impedir acesso apenas por URL ou chamadas diretas à API.
-
-### 11
-
-Auditoria geral de segurança do Nexora Booking.
-
-Verificar:
-
-* páginas;
-* rotas;
-* APIs;
-* autenticação;
-* autorização;
-* Supabase;
-* RLS;
-* acessos diretos;
-* dados expostos;
-* ações disponíveis para cada perfil.
+- visão financeira anual;
+- total anual;
+- visão mensal;
+- indicadores anuais;
+- gráficos financeiros;
+- utilização da mesma base financeira do 9K.2;
+- sem duplicação desnecessária da regra financeira;
+- cálculo baseado exclusivamente em marcações `concluido`.
 
 ---
 
-## Regra de continuidade
+# Permissões e acessos
 
-Ao terminar cada etapa importante:
+## Etapa 10 — Sistema de permissões
 
-1. Atualizar este ficheiro.
-2. Atualizar `ROADMAP.md`.
-3. Registar a alteração em `CHANGELOG.md`.
-4. Criar um commit Git quando a etapa estiver estável.
+**Estado:** CONCLUÍDO
 
-Nunca considerar uma etapa concluída sem atualizar o estado do projeto.
+Foi implementado um sistema de permissões por empresa.
 
-### Calendário e permissões — melhoria concluída
+### Perfis
 
-- Vista diária e semanal implementadas.
-- Cabeçalhos dos dias na vista semanal são clicáveis e abrem a vista diária correspondente.
-- Marcações na vista semanal e diária são clicáveis.
-- Criado `DetalhesMarcacaoModal.tsx` para consulta dos detalhes da marcação.
-- Criado `MarcacaoCalendarioButton.tsx` para gerir a abertura do modal.
-- Modal apresenta:
-  - cliente
-  - serviço
-  - profissional
-  - horário
-  - estado
-  - notas
-- Ações de gestão passaram para o modal.
-- Ações de gestão continuam condicionadas à permissão `marcacoes`.
-- Funcionários com apenas `agenda` conseguem consultar marcações, mas não geri-las.
-- Área de Clientes alinhada com a permissão `clientes`.
-- Quem possui `clientes` pode consultar, criar, editar e eliminar clientes.
-- Quem não possui `clientes` é redirecionado para o Booking.
-- Testes realizados com build concluído com sucesso.
+#### Administrador da empresa
+
+Tem acesso completo às áreas da respetiva empresa.
+
+#### Funcionário
+
+Tem acesso apenas às permissões atribuídas.
+
+#### Utilizador desativado
+
+Não pode aceder ao Booking.
+
+---
+
+## Permissões disponíveis
+
+- `agenda`
+- `clientes`
+- `marcacoes`
+- `servicos`
+- `profissionais`
+- `disponibilidade`
+- `bloqueios`
+- `financeiro`
+- `configuracoes`
+- `equipa`
+
+---
+
+## Segurança das permissões
+
+As permissões são verificadas em várias camadas:
+
+### Interface
+
+A aplicação apresenta apenas as áreas permitidas ao utilizador.
+
+### Proxy
+
+O acesso direto através de URL é validado antes de permitir a entrada na área.
+
+### Páginas
+
+As páginas Booking possuem verificações próprias de:
+
+- autenticação;
+- membro da empresa;
+- utilizador ativo;
+- alteração obrigatória de password;
+- administrador ou permissão necessária.
+
+### APIs
+
+As APIs Booking foram revistas para validar:
+
+- autenticação;
+- existência do membro;
+- estado ativo;
+- `must_change_password`;
+- administrador ou permissão necessária;
+- empresa correta;
+- acesso ao recurso solicitado.
+
+### Supabase
+
+As tabelas relevantes possuem RLS e políticas para manter o isolamento entre empresas.
+
+---
+
+# Equipa
+
+Foi implementado o sistema de membros da empresa através de:
+
+`company_members`
+
+Informação relevante:
+
+- utilizador;
+- empresa;
+- role;
+- username;
+- estado ativo;
+- alteração obrigatória de password.
+
+Os funcionários não são eliminados quando deixam a empresa.
+
+São desativados através de:
+
+`is_active = false`
+
+---
+
+# Passwords
+
+As passwords são geridas pelo Supabase Auth.
+
+Não são armazenadas em texto simples na aplicação.
+
+Novos funcionários podem ser obrigados a alterar a password no primeiro acesso através de:
+
+`must_change_password`
+
+---
+
+# Calendário
+
+Foram implementadas melhorias na navegação e gestão das marcações.
+
+### Funcionalidades
+
+- vista diária;
+- vista semanal;
+- navegação entre dias;
+- navegação entre semanas;
+- clique no cabeçalho de um dia semanal para abrir a vista diária;
+- clique numa marcação para abrir detalhes;
+- modal compacto de detalhes;
+- ações de gestão dentro do modal;
+- respeito pela permissão `marcacoes`.
+
+---
+
+# Clientes
+
+A área de Clientes está protegida pela permissão:
+
+`clientes`
+
+Um funcionário com essa permissão pode utilizar as operações permitidas na área de Clientes.
+
+---
+
+# Estado do Booking
+
+O estado global do Booking é apresentado corretamente tanto para administradores como para funcionários.
+
+Foi criada a função segura:
+
+`public.get_booking_status(uuid)`
+
+Esta função permite consultar o estado `agendamento_ativo` sem obrigar o funcionário a possuir a permissão `configuracoes`.
+
+Isto corrige o problema em que um funcionário via:
+
+**Agendamentos suspensos**
+
+enquanto o administrador via:
+
+**Agendamentos ativos**
+
+apesar de a configuração real estar ativa.
+
+A correção foi validada no navegador.
+
+---
+
+# Auditoria de segurança
+
+## Etapa 11 — Auditoria
+
+**Estado:** CONCLUÍDA
+
+Foi realizada uma revisão abrangente do Booking.
+
+### Áreas revistas
+
+- autenticação;
+- autorização;
+- proxy;
+- páginas;
+- APIs;
+- Supabase;
+- RLS;
+- policies;
+- permissões;
+- acesso direto por URL;
+- isolamento por empresa;
+- ações disponíveis por perfil;
+- funções `SECURITY DEFINER`;
+- permissões `GRANT EXECUTE`;
+- variáveis de ambiente;
+- exposição de segredos;
+- possíveis bypasses de autorização.
+
+---
+
+# APIs Booking auditadas
+
+Foram revistas as rotas de:
+
+- agendamentos;
+- estados das marcações;
+- cancelamento;
+- conclusão;
+- clientes;
+- serviços;
+- profissionais;
+- disponibilidade;
+- bloqueios;
+- configurações;
+- onboarding.
+
+As APIs mantêm validações de autenticação, membro ativo, permissões e empresa.
+
+---
+
+# RLS
+
+Foi realizada revisão das principais tabelas do Booking.
+
+Entre as tabelas revistas:
+
+- `agendamentos`
+- `bloqueios`
+- `clientes`
+- `companies`
+- `company_ai_settings`
+- `company_documents`
+- `company_knowledge`
+- `company_member_permissions`
+- `company_members`
+- `company_subscriptions`
+- `product_subscriptions`
+- `products`
+- `profissionais`
+- `profissionais_servicos`
+- `servicos`
+- `configuracoes_agendamento`
+- `disponibilidade`
+
+O isolamento por empresa é baseado no utilizador autenticado e nas relações existentes em `company_members`.
+
+---
+
+# Funções de segurança
+
+As funções principais utilizadas para autorização incluem:
+
+- `private.is_company_admin(uuid)`
+- `private.has_company_permission(uuid, text)`
+
+Estas funções utilizam `SECURITY DEFINER` e estão configuradas com `search_path` restrito.
+
+A execução pública das funções privilegiadas foi revista e os `GRANT EXECUTE` foram restringidos de acordo com a finalidade de cada função.
+
+---
+
+# Testes realizados
+
+Foi testado um funcionário real do ambiente de desenvolvimento com permissões limitadas.
+
+Resultado confirmado:
+
+- acesso ao Calendário quando possui `agenda`;
+- acesso a Clientes quando possui `clientes`;
+- bloqueio do Financeiro sem `financeiro`;
+- bloqueio das restantes áreas sem a respetiva permissão;
+- bloqueio através de acesso direto por URL;
+- estado do Booking apresentado corretamente;
+- build de produção validado durante as alterações.
+
+---
+
+# Pontos de hardening ainda identificados
+
+A auditoria funcional e de autorização foi concluída, mas existem alguns pontos de endurecimento que permanecem identificados para uma futura revisão de produção:
+
+1. A tabela `products` possui RLS ativo mas atualmente não possui policies.
+2. O Leaked Password Protection do Supabase ainda não está ativado.
+3. Existe um pequeno ponto a rever no fluxo `onboarding/company` relativamente a membros inativos.
+4. A função `complete_first_login()` poderá ser endurecida para garantir de forma mais rigorosa que a password foi efetivamente alterada antes de concluir o primeiro acesso.
+
+Estes pontos não invalidam a conclusão da auditoria funcional de permissões, mas devem ser considerados antes da preparação final para produção.
+
+---
+
+# Estrutura atual de acesso
+
+### Nexora Admin
+
+Acesso administrativo à plataforma Nexora.
+
+### Administrador da empresa
+
+Acesso completo à respetiva empresa.
+
+### Funcionário
+
+Acesso exclusivamente às permissões atribuídas.
+
+### Desativado
+
+Sem acesso ao Booking.
+
+---
+
+# Empresas atualmente utilizadas
+
+### Flor & Cura
+
+Administrador:
+
+`dyzenf`
+
+Funcionário:
+
+`geral.dpwash`
+
+Permissões atuais do funcionário:
+
+- `agenda`
+- `clientes`
+
+### Nexora Tech
+
+Administrador:
+
+`freitas2805`
+
+---
+
+# Próxima etapa
+
+## Etapa 12 — Revisão geral e estabilização
+
+Objetivos:
+
+- revisão geral do código;
+- correção de bugs;
+- validação dos fluxos;
+- testes;
+- revisão da interface;
+- performance;
+- hardening de segurança;
+- preparação para produção.
+
+---
+
+# Regra de continuidade
+
+Antes de iniciar uma nova etapa:
+
+1. Implementar.
+2. Testar.
+3. Corrigir.
+4. Confirmar funcionamento.
+5. Atualizar `CURRENT-STATE.md`.
+6. Atualizar `ROADMAP.md`.
+7. Atualizar `CHANGELOG.md`.
+8. Criar commit Git.
+9. Fazer push apenas quando explicitamente decidido.

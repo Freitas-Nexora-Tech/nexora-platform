@@ -32,14 +32,19 @@ export async function PATCH(request: Request) {
             );
         }
 
-        const { data: membro } = await supabase
+        const {
+            data: membro,
+            error: membroError,
+        } = await supabase
             .from("company_members")
-            .select("company_id")
+            .select(
+                "id, company_id, role, is_active, must_change_password"
+            )
             .eq("user_id", user.id)
             .limit(1)
             .single();
 
-        if (!membro?.company_id) {
+        if (membroError || !membro) {
             return NextResponse.json(
                 {
                     error: "Empresa não encontrada.",
@@ -50,14 +55,88 @@ export async function PATCH(request: Request) {
             );
         }
 
+        if (!membro.is_active) {
+            return NextResponse.json(
+                {
+                    error:
+                        "O acesso deste utilizador está desativado.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        if (membro.must_change_password) {
+            return NextResponse.json(
+                {
+                    error:
+                        "É necessário alterar a palavra-passe antes de continuar.",
+                },
+                {
+                    status: 403,
+                }
+            );
+        }
+
+        /*
+         * Verificar permissão para alterar configurações.
+         *
+         * Administradores têm acesso total.
+         * Funcionários precisam da permissão "configuracoes".
+         */
+        if (membro.role !== "admin") {
+            const {
+                data: permissao,
+                error: permissaoError,
+            } = await supabase
+                .from("company_member_permissions")
+                .select("id")
+                .eq("member_id", membro.id)
+                .eq("permission", "configuracoes")
+                .limit(1)
+                .maybeSingle();
+
+            if (permissaoError) {
+                console.error(
+                    "Erro ao verificar permissão de configurações:",
+                    permissaoError
+                );
+
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não foi possível verificar as permissões do utilizador.",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+            if (!permissao) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Não tem permissão para alterar as configurações.",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
         const empresaId = membro.company_id;
 
         const body =
             (await request.json()) as ConfiguracaoBody;
 
         if (
-            typeof body.agendamento_ativo !== "boolean" ||
-            typeof body.cancelamento_ativo !== "boolean"
+            typeof body.agendamento_ativo !==
+                "boolean" ||
+            typeof body.cancelamento_ativo !==
+                "boolean"
         ) {
             return NextResponse.json(
                 {
@@ -71,12 +150,14 @@ export async function PATCH(request: Request) {
         }
 
         if (
-            typeof body.fuso_horario !== "string" ||
+            typeof body.fuso_horario !==
+                "string" ||
             !body.fuso_horario.trim()
         ) {
             return NextResponse.json(
                 {
-                    error: "O fuso horário é obrigatório.",
+                    error:
+                        "O fuso horário é obrigatório.",
                 },
                 {
                     status: 400,
@@ -85,19 +166,29 @@ export async function PATCH(request: Request) {
         }
 
         const intervalo =
-            Number(body.intervalo_marcacao_minutos);
+            Number(
+                body.intervalo_marcacao_minutos
+            );
 
         const antecedenciaMinima =
-            Number(body.antecedencia_minima_minutos);
+            Number(
+                body.antecedencia_minima_minutos
+            );
 
         const antecedenciaMaxima =
-            Number(body.antecedencia_maxima_dias);
+            Number(
+                body.antecedencia_maxima_dias
+            );
 
         const prazoCancelamento =
-            Number(body.prazo_cancelamento_minutos);
+            Number(
+                body.prazo_cancelamento_minutos
+            );
 
         const capacidade =
-            Number(body.capacidade_por_horario);
+            Number(
+                body.capacidade_por_horario
+            );
 
         if (
             !Number.isInteger(intervalo) ||
@@ -115,7 +206,9 @@ export async function PATCH(request: Request) {
         }
 
         if (
-            !Number.isInteger(antecedenciaMinima) ||
+            !Number.isInteger(
+                antecedenciaMinima
+            ) ||
             antecedenciaMinima < 0
         ) {
             return NextResponse.json(
@@ -130,7 +223,9 @@ export async function PATCH(request: Request) {
         }
 
         if (
-            !Number.isInteger(antecedenciaMaxima) ||
+            !Number.isInteger(
+                antecedenciaMaxima
+            ) ||
             antecedenciaMaxima <= 0
         ) {
             return NextResponse.json(
@@ -145,7 +240,9 @@ export async function PATCH(request: Request) {
         }
 
         if (
-            !Number.isInteger(prazoCancelamento) ||
+            !Number.isInteger(
+                prazoCancelamento
+            ) ||
             prazoCancelamento < 0
         ) {
             return NextResponse.json(
@@ -174,10 +271,17 @@ export async function PATCH(request: Request) {
             );
         }
 
-        const { data: configuracao } = await supabase
-            .from("configuracoes_agendamento")
+        const {
+            data: configuracao,
+        } = await supabase
+            .from(
+                "configuracoes_agendamento"
+            )
             .select("id")
-            .eq("empresa_id", empresaId)
+            .eq(
+                "empresa_id",
+                empresaId
+            )
             .maybeSingle();
 
         if (!configuracao) {
@@ -196,7 +300,9 @@ export async function PATCH(request: Request) {
             data: configuracaoAtualizada,
             error: configuracaoError,
         } = await supabase
-            .from("configuracoes_agendamento")
+            .from(
+                "configuracoes_agendamento"
+            )
             .update({
                 agendamento_ativo:
                     body.agendamento_ativo,
@@ -214,10 +320,17 @@ export async function PATCH(request: Request) {
                     prazoCancelamento,
                 capacidade_por_horario:
                     capacidade,
-                updated_at: new Date().toISOString(),
+                updated_at:
+                    new Date().toISOString(),
             })
-            .eq("id", configuracao.id)
-            .eq("empresa_id", empresaId)
+            .eq(
+                "id",
+                configuracao.id
+            )
+            .eq(
+                "empresa_id",
+                empresaId
+            )
             .select(
                 `
                 id,
@@ -252,7 +365,8 @@ export async function PATCH(request: Request) {
 
         return NextResponse.json({
             success: true,
-            configuracao: configuracaoAtualizada,
+            configuracao:
+                configuracaoAtualizada,
         });
     } catch (error) {
         console.error(

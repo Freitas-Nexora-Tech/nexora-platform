@@ -2,265 +2,405 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 const BOOKING_PRODUCT_ID = "165ea020-af05-447a-a21e-1ef91f88b68e";
+const CAMPAIGN_CODE = "BOOKING-AI-2M";
 
-const BOOKING_AI_CAMPAIGN_CODE = "BOOKING-AI-2M";
+const PLAN_SLUGS = ["starter", "professional", "business"] as const;
 
-const BOOKING_PLANS = {
-    starter: "booking-starter",
-    professional: "booking-professional",
-    business: "booking-business",
-} as const;
-
-type BookingPlan = keyof typeof BOOKING_PLANS;
+type PlanSlug = (typeof PLAN_SLUGS)[number];
 
 export async function POST(request: Request) {
-    try {
-        const supabase = await createSupabaseServerClient();
+  try {
+    const supabase = await createSupabaseServerClient();
 
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
+    // ---------------------------------------------------------
+    // 1. Utilizador autenticado
+    // ---------------------------------------------------------
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-        if (!user) {
-            return NextResponse.json(
-                { error: "Não autenticado." },
-                { status: 401 }
-            );
-        }
+    if (!user) {
+      return NextResponse.json(
+        { error: "Utilizador não autenticado." },
+        { status: 401 }
+      );
+    }
 
-        const body = await request.json();
+    // ---------------------------------------------------------
+    // 2. Dados recebidos
+    // ---------------------------------------------------------
+    const body = await request.json();
 
-        const empresaId = body.empresa_id;
-        const plano = body.plano as BookingPlan;
+    const empresaId = body?.empresa_id;
+    const plano = body?.plano as PlanSlug;
 
-        if (!empresaId || !plano) {
-            return NextResponse.json(
-                { error: "Empresa e plano são obrigatórios." },
-                { status: 400 }
-            );
-        }
+    if (!empresaId || typeof empresaId !== "string") {
+      return NextResponse.json(
+        { error: "empresa_id é obrigatório." },
+        { status: 400 }
+      );
+    }
 
-        if (!BOOKING_PLANS[plano]) {
-            return NextResponse.json(
-                { error: "Plano Booking inválido." },
-                { status: 400 }
-            );
-        }
+    if (!PLAN_SLUGS.includes(plano)) {
+      return NextResponse.json(
+        { error: "Plano inválido." },
+        { status: 400 }
+      );
+    }
 
-        // Confirmar que o utilizador pertence à empresa
-        const { data: membro, error: membroError } = await supabase
-            .from("company_members")
-            .select("company_id")
-            .eq("user_id", user.id)
-            .eq("company_id", empresaId)
-            .maybeSingle();
+    // ---------------------------------------------------------
+    // 3. Verificar membro da empresa
+    // ---------------------------------------------------------
+    const { data: membro, error: membroError } = await supabase
+      .from("company_members")
+      .select(
+        "id, company_id, role, is_active, must_change_password"
+      )
+      .eq("user_id", user.id)
+      .eq("company_id", empresaId)
+      .maybeSingle();
 
-        if (membroError) {
-            console.error("Erro ao verificar membro:", membroError);
+    if (membroError) {
+      console.error(
+        "Erro ao verificar membro da empresa:",
+        membroError
+      );
 
-            return NextResponse.json(
-                { error: "Não foi possível verificar a empresa." },
-                { status: 500 }
-            );
-        }
+      return NextResponse.json(
+        { error: "Não foi possível validar o acesso à empresa." },
+        { status: 500 }
+      );
+    }
 
-        if (!membro) {
-            return NextResponse.json(
-                { error: "Não tem acesso a esta empresa." },
-                { status: 403 }
-            );
-        }
+    if (!membro) {
+      return NextResponse.json(
+        { error: "Não tem acesso a esta empresa." },
+        { status: 403 }
+      );
+    }
 
-        // Procurar o plano Booking
-        const { data: plan, error: planError } = await supabase
-            .from("plans")
-            .select(
-                "id, name, slug, product_id, price_monthly, price_yearly, max_professionals"
-            )
-            .eq("slug", BOOKING_PLANS[plano])
-            .eq("product_id", BOOKING_PRODUCT_ID)
-            .eq("is_active", true)
-            .maybeSingle();
+    // ---------------------------------------------------------
+    // 4. Conta desativada
+    // ---------------------------------------------------------
+    if (!membro.is_active) {
+      return NextResponse.json(
+        { error: "A sua conta está desativada." },
+        { status: 403 }
+      );
+    }
 
-        if (planError) {
-            console.error("Erro ao procurar plano:", planError);
+    // ---------------------------------------------------------
+    // 5. Password inicial ainda não alterada
+    // ---------------------------------------------------------
+    if (membro.must_change_password) {
+      return NextResponse.json(
+        {
+          error:
+            "É necessário alterar a password antes de continuar.",
+        },
+        { status: 403 }
+      );
+    }
 
-            return NextResponse.json(
-                { error: "Não foi possível encontrar o plano Booking." },
-                { status: 500 }
-            );
-        }
+    // ---------------------------------------------------------
+    // 6. Apenas o administrador pode configurar o Booking
+    // ---------------------------------------------------------
+    if (membro.role !== "admin") {
+      return NextResponse.json(
+        {
+          error:
+            "Apenas o administrador da empresa pode configurar o Booking.",
+        },
+        { status: 403 }
+      );
+    }
 
-        if (!plan) {
-            return NextResponse.json(
-                { error: "Plano Booking não encontrado." },
-                { status: 404 }
-            );
-        }
+    // ---------------------------------------------------------
+    // 7. Procurar plano Booking ativo
+    // ---------------------------------------------------------
+    const { data: planoDb, error: planoError } = await supabase
+      .from("products")
+      .select("id, slug, name")
+      .eq("id", BOOKING_PRODUCT_ID)
+      .eq("is_active", true)
+      .maybeSingle();
 
-        // Verificar se a empresa já tem Booking
-        const { data: existingSubscription, error: existingError } =
-            await supabase
-                .from("product_subscriptions")
-                .select("id, status, plan_id")
-                .eq("company_id", empresaId)
-                .eq("product_id", BOOKING_PRODUCT_ID)
-                .maybeSingle();
+    if (planoError) {
+      console.error("Erro ao procurar produto Booking:", planoError);
 
-        if (existingError) {
-            console.error(
-                "Erro ao verificar subscrição existente:",
-                existingError
-            );
+      return NextResponse.json(
+        { error: "Não foi possível carregar o produto Booking." },
+        { status: 500 }
+      );
+    }
 
-            return NextResponse.json(
-                {
-                    error:
-                        "Não foi possível verificar a subscrição Booking.",
-                },
-                { status: 500 }
-            );
-        }
+    if (!planoDb) {
+      return NextResponse.json(
+        { error: "Produto Booking não encontrado ou inativo." },
+        { status: 404 }
+      );
+    }
 
-        if (existingSubscription) {
-            return NextResponse.json(
-                {
-                    error:
-                        "Esta empresa já tem uma subscrição do Nexora Booking.",
-                    subscription: existingSubscription,
-                },
-                { status: 409 }
-            );
-        }
+    // ---------------------------------------------------------
+    // 8. Verificar se já existe subscrição
+    // ---------------------------------------------------------
+    const { data: subscricaoExistente, error: subscricaoError } =
+      await supabase
+        .from("product_subscriptions")
+        .select(
+          "id, product_id, company_id, plan_slug, status, trial_ends_at"
+        )
+        .eq("company_id", empresaId)
+        .eq("product_id", BOOKING_PRODUCT_ID)
+        .maybeSingle();
 
-        const now = new Date();
+    if (subscricaoError) {
+      console.error(
+        "Erro ao verificar subscrição existente:",
+        subscricaoError
+      );
 
-        const trialEnds = new Date(now);
-        trialEnds.setDate(trialEnds.getDate() + 14);
+      return NextResponse.json(
+        { error: "Não foi possível verificar a subscrição." },
+        { status: 500 }
+      );
+    }
 
-        // Campanha de lançamento:
-        // Nexora AI incluída durante 2 meses.
-        const campaignEnds = new Date(now);
-        campaignEnds.setMonth(campaignEnds.getMonth() + 2);
+    // ---------------------------------------------------------
+    // 9. Se já existir subscrição, não duplicar
+    // ---------------------------------------------------------
+    if (subscricaoExistente) {
+      return NextResponse.json({
+        success: true,
+        subscription: subscricaoExistente,
+        plan: planoDb,
+        already_exists: true,
+      });
+    }
 
-        // Criar subscrição Booking
-        const { data: subscription, error: subscriptionError } = await supabase
-            .from("product_subscriptions")
-            .insert({
-                company_id: empresaId,
-                product_id: BOOKING_PRODUCT_ID,
-                plan_id: plan.id,
-                status: "trial",
-                billing_cycle: "monthly",
-                current_period_start: now.toISOString(),
-                current_period_end: trialEnds.toISOString(),
-                trial_ends_at: trialEnds.toISOString(),
+    // ---------------------------------------------------------
+    // 10. Criar trial de 14 dias
+    // ---------------------------------------------------------
+    const agora = new Date();
 
-                // Campanha de lançamento Nexora AI
-                campaign_code: BOOKING_AI_CAMPAIGN_CODE,
-                campaign_started_at: now.toISOString(),
-                campaign_ends_at: campaignEnds.toISOString(),
-            })
-            .select()
-            .single();
+    const trialEndsAt = new Date(agora);
+    trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
-        if (subscriptionError) {
-            console.error(
-                "Erro ao criar subscrição Booking:",
-                subscriptionError
-            );
+    const { data: novaSubscricao, error: novaSubscricaoError } =
+      await supabase
+        .from("product_subscriptions")
+        .insert({
+          company_id: empresaId,
+          product_id: BOOKING_PRODUCT_ID,
+          plan_slug: plano,
+          status: "trialing",
+          trial_started_at: agora.toISOString(),
+          trial_ends_at: trialEndsAt.toISOString(),
+        })
+        .select(
+          "id, product_id, company_id, plan_slug, status, trial_started_at, trial_ends_at"
+        )
+        .single();
 
-            return NextResponse.json(
-                { error: "Não foi possível ativar o Nexora Booking." },
-                { status: 500 }
-            );
-        }
+    if (novaSubscricaoError) {
+      console.error(
+        "Erro ao criar subscrição:",
+        novaSubscricaoError
+      );
 
-        // Verificar se a empresa já tem configuração de agenda
-        const { data: existingConfig, error: configCheckError } =
-            await supabase
-                .from("configuracoes_agendamento")
-                .select("id")
-                .eq("empresa_id", empresaId)
-                .maybeSingle();
+      return NextResponse.json(
+        { error: "Não foi possível criar a subscrição." },
+        { status: 500 }
+      );
+    }
 
-        if (configCheckError) {
-            console.error(
-                "Erro ao verificar configuração Booking:",
-                configCheckError
-            );
+    // ---------------------------------------------------------
+    // 11. Criar campanha AI de 2 meses
+    // ---------------------------------------------------------
+    const campaignEndsAt = new Date(agora);
+    campaignEndsAt.setMonth(campaignEndsAt.getMonth() + 2);
 
-            // Rollback da subscrição criada
-            await supabase
-                .from("product_subscriptions")
-                .delete()
-                .eq("id", subscription.id);
+    const { error: campaignError } = await supabase
+      .from("product_campaigns")
+      .insert({
+        company_id: empresaId,
+        product_id: BOOKING_PRODUCT_ID,
+        campaign_code: CAMPAIGN_CODE,
+        starts_at: agora.toISOString(),
+        ends_at: campaignEndsAt.toISOString(),
+        status: "active",
+      });
 
-            return NextResponse.json(
-                {
-                    error:
-                        "Não foi possível verificar a configuração da agenda.",
-                },
-                { status: 500 }
-            );
-        }
+    if (campaignError) {
+      console.error(
+        "Erro ao criar campanha Booking AI:",
+        campaignError
+      );
 
-        // Criar configuração apenas se ainda não existir
-        if (!existingConfig) {
-            const { error: configError } = await supabase
-                .from("configuracoes_agendamento")
-                .insert({
-                    empresa_id: empresaId,
-                    agendamento_ativo: true,
-                    fuso_horario: "Europe/Lisbon",
-                    intervalo_marcacao_minutos: 30,
-                    antecedencia_minima_minutos: 120,
-                    antecedencia_maxima_dias: 60,
-                    cancelamento_ativo: true,
-                    prazo_cancelamento_minutos: 120,
-                    capacidade_por_horario: 1,
-                });
+      // Tentativa de rollback da subscrição criada acima.
+      await supabase
+        .from("product_subscriptions")
+        .delete()
+        .eq("id", novaSubscricao.id);
 
-            if (configError) {
-                console.error(
-                    "Erro ao criar configuração Booking:",
-                    configError
-                );
+      return NextResponse.json(
+        {
+          error:
+            "Não foi possível ativar a campanha do Booking AI.",
+        },
+        { status: 500 }
+      );
+    }
 
-                // Rollback da subscrição criada
-                await supabase
-                    .from("product_subscriptions")
-                    .delete()
-                    .eq("id", subscription.id);
+    // ---------------------------------------------------------
+    // 12. Verificar configuração do Booking
+    // ---------------------------------------------------------
+    const { data: configuracaoExistente, error: configuracaoError } =
+      await supabase
+        .from("configuracoes_agendamento")
+        .select(
+          "id, empresa_id, nome_empresa, duracao_padrao, intervalo_minutos, timezone, ativo"
+        )
+        .eq("empresa_id", empresaId)
+        .maybeSingle();
 
-                return NextResponse.json(
-                    {
-                        error:
-                            "Não foi possível configurar a agenda Booking.",
-                    },
-                    { status: 500 }
-                );
-            }
-        }
+    if (configuracaoError) {
+      console.error(
+        "Erro ao verificar configuração Booking:",
+        configuracaoError
+      );
 
-        return NextResponse.json({
-            success: true,
-            subscription,
-            plan: {
-                id: plan.id,
-                name: plan.name,
-                slug: plan.slug,
-                price_monthly: plan.price_monthly,
-                price_yearly: plan.price_yearly,
-                max_professionals: plan.max_professionals,
-            },
-        });
-    } catch (error) {
-        console.error("Erro no onboarding Booking:", error);
+      // Rollback
+      await supabase
+        .from("product_campaigns")
+        .delete()
+        .eq("company_id", empresaId)
+        .eq("campaign_code", CAMPAIGN_CODE);
+
+      await supabase
+        .from("product_subscriptions")
+        .delete()
+        .eq("id", novaSubscricao.id);
+
+      return NextResponse.json(
+        {
+          error:
+            "Não foi possível verificar a configuração do Booking.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // ---------------------------------------------------------
+    // 13. Criar configuração padrão se ainda não existir
+    // ---------------------------------------------------------
+    if (!configuracaoExistente) {
+      const { data: empresa, error: empresaError } = await supabase
+        .from("companies")
+        .select("id, name")
+        .eq("id", empresaId)
+        .single();
+
+      if (empresaError || !empresa) {
+        console.error(
+          "Erro ao carregar empresa:",
+          empresaError
+        );
+
+        // Rollback
+        await supabase
+          .from("product_campaigns")
+          .delete()
+          .eq("company_id", empresaId)
+          .eq("campaign_code", CAMPAIGN_CODE);
+
+        await supabase
+          .from("product_subscriptions")
+          .delete()
+          .eq("id", novaSubscricao.id);
 
         return NextResponse.json(
-            { error: "Ocorreu um erro inesperado." },
-            { status: 500 }
+          { error: "Empresa não encontrada." },
+          { status: 404 }
         );
+      }
+
+      const { data: novaConfiguracao, error: novaConfiguracaoError } =
+        await supabase
+          .from("configuracoes_agendamento")
+          .insert({
+            empresa_id: empresaId,
+            nome_empresa: empresa.name,
+            duracao_padrao: 60,
+            intervalo_minutos: 0,
+            timezone: "Europe/Lisbon",
+            ativo: true,
+          })
+          .select(
+            "id, empresa_id, nome_empresa, duracao_padrao, intervalo_minutos, timezone, ativo"
+          )
+          .single();
+
+      if (novaConfiguracaoError) {
+        console.error(
+          "Erro ao criar configuração Booking:",
+          novaConfiguracaoError
+        );
+
+        // Rollback
+        await supabase
+          .from("product_campaigns")
+          .delete()
+          .eq("company_id", empresaId)
+          .eq("campaign_code", CAMPAIGN_CODE);
+
+        await supabase
+          .from("product_subscriptions")
+          .delete()
+          .eq("id", novaSubscricao.id);
+
+        return NextResponse.json(
+          {
+            error:
+              "Não foi possível criar a configuração inicial do Booking.",
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        subscription: novaSubscricao,
+        plan: planoDb,
+        configuration: novaConfiguracao,
+        campaign: {
+          code: CAMPAIGN_CODE,
+          starts_at: agora.toISOString(),
+          ends_at: campaignEndsAt.toISOString(),
+        },
+      });
     }
+
+    // ---------------------------------------------------------
+    // 14. Já existia configuração
+    // ---------------------------------------------------------
+    return NextResponse.json({
+      success: true,
+      subscription: novaSubscricao,
+      plan: planoDb,
+      configuration: configuracaoExistente,
+      campaign: {
+        code: CAMPAIGN_CODE,
+        starts_at: agora.toISOString(),
+        ends_at: campaignEndsAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Erro inesperado no onboarding Booking:", error);
+
+    return NextResponse.json(
+      { error: "Ocorreu um erro inesperado." },
+      { status: 500 }
+    );
+  }
 }

@@ -11,17 +11,44 @@ export default async function NovoProfissionalPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
     const { data: membro } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
-    if (!membro?.company_id) {
+    if (
+        !membro?.company_id ||
+        !membro.is_active
+    ) {
+        redirect("/booking/login");
+    }
+
+    if (membro.must_change_password) {
+        redirect("/booking/alterar-password");
+    }
+
+    let temProfissionais = membro.role === "admin";
+
+    if (!temProfissionais) {
+        const { data: permissaoProfissionais } =
+            await supabase
+                .from("company_member_permissions")
+                .select("permission")
+                .eq("member_id", membro.id)
+                .eq("permission", "profissionais")
+                .maybeSingle();
+
+        temProfissionais = !!permissaoProfissionais;
+    }
+
+    if (!temProfissionais) {
         redirect("/nexora-ai/booking");
     }
 

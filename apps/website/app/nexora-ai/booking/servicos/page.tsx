@@ -20,17 +20,44 @@ export default async function ServicosPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
     const { data: membro } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
-    if (!membro?.company_id) {
+    if (
+        !membro?.company_id ||
+        !membro.is_active
+    ) {
+        redirect("/booking/login");
+    }
+
+    if (membro.must_change_password) {
+        redirect("/booking/alterar-password");
+    }
+
+    let temServicos = membro.role === "admin";
+
+    if (!temServicos) {
+        const { data: permissaoServicos } =
+            await supabase
+                .from("company_member_permissions")
+                .select("permission")
+                .eq("member_id", membro.id)
+                .eq("permission", "servicos")
+                .maybeSingle();
+
+        temServicos = !!permissaoServicos;
+    }
+
+    if (!temServicos) {
         redirect("/nexora-ai/booking");
     }
 
@@ -126,10 +153,11 @@ export default async function ServicosPage() {
                                             </h2>
 
                                             <span
-                                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${servico.ativo
+                                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                                                    servico.ativo
                                                         ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
                                                         : "border-slate-700 bg-slate-800 text-slate-400"
-                                                    }`}
+                                                }`}
                                             >
                                                 {servico.ativo
                                                     ? "Ativo"
@@ -159,7 +187,10 @@ export default async function ServicosPage() {
                                                 Preço
                                             </p>
                                             <p className="mt-1 font-semibold text-cyan-400">
-                                                {Number(servico.preco).toFixed(2)} €
+                                                {Number(
+                                                    servico.preco
+                                                ).toFixed(2)}{" "}
+                                                €
                                             </p>
                                         </div>
 
@@ -169,6 +200,7 @@ export default async function ServicosPage() {
                                         >
                                             ✎ Editar
                                         </Link>
+
                                         <AlterarEstadoServicoButton
                                             servicoId={servico.id}
                                             ativo={servico.ativo}

@@ -102,25 +102,54 @@ export default async function AgendamentosPage({
     const profissionalFiltro = params.profissional ?? "";
     const servicoFiltro = params.servico ?? "";
 
-    const supabase =
-        await createSupabaseServerClient();
+    const supabase = await createSupabaseServerClient();
 
     const {
         data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect("/nexora-ai/login");
+        redirect("/booking/login");
     }
 
-    const { data: membro } = await supabase
+    // Membro da empresa + controlo de acesso
+    const { data: membro, error: membroError } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select(
+            "id, company_id, role, is_active, must_change_password"
+        )
         .eq("user_id", user.id)
         .limit(1)
         .single();
 
-    if (!membro?.company_id) {
+    if (
+        membroError ||
+        !membro?.company_id ||
+        !membro.is_active
+    ) {
+        redirect("/booking/login");
+    }
+
+    if (membro.must_change_password) {
+        redirect("/booking/alterar-password");
+    }
+
+    // Admin tem acesso total.
+    // Funcionário precisa da permissão "marcacoes".
+    let podeGerirMarcacoes = membro.role === "admin";
+
+    if (!podeGerirMarcacoes) {
+        const { data: permissaoMarcacoes } = await supabase
+            .from("company_member_permissions")
+            .select("permission")
+            .eq("member_id", membro.id)
+            .eq("permission", "marcacoes")
+            .maybeSingle();
+
+        podeGerirMarcacoes = !!permissaoMarcacoes;
+    }
+
+    if (!podeGerirMarcacoes) {
         redirect("/nexora-ai/booking");
     }
 
@@ -723,12 +752,14 @@ export default async function AgendamentosPage({
                                                             }
                                                         />
                                                     )}
+
                                                 {(agendamento.estado === "pendente" ||
                                                     agendamento.estado === "confirmado") && (
                                                         <CancelarMarcacaoButton
                                                             agendamentoId={agendamento.id}
                                                         />
                                                     )}
+
                                                 {agendamento.estado === "confirmado" && (
                                                     <ConcluirMarcacaoButton
                                                         agendamentoId={agendamento.id}
@@ -760,6 +791,7 @@ export default async function AgendamentosPage({
                                                             : "—"}
                                                     </p>
                                                 </div>
+
                                                 <div>
                                                     <p className="text-xs uppercase tracking-wider text-slate-600">
                                                         Fim
