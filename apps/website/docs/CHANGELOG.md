@@ -1,5 +1,155 @@
 # Nexora Booking — Changelog
 
+2026-09-30 — Login, marcações públicas, calendário e estabilização
+
+Login do Booking
+
+Foi corrigido o fluxo de login do Nexora Booking.
+
+Implementado e validado:
+
+login através de username e password;
+
+utilização da API /api/booking/login;
+
+estabelecimento da sessão Supabase Auth no navegador;
+
+encaminhamento para alteração de password quando must_change_password = true;
+
+entrada normal no Booking quando o primeiro acesso já foi concluído.
+
+Também foi corrigido o import do cliente Supabase SSR na página de login.
+
+Estado do Booking
+
+Foi corrigido o problema em que o dashboard apresentava:
+
+Agendamentos suspensos
+
+apesar de agendamento_ativo = true.
+
+A consulta do estado deixou de depender da função get_booking_status() no cliente autenticado.
+
+O dashboard passou a consultar a configuração server-side através do cliente administrativo, depois de validar o acesso do utilizador e a empresa.
+
+A alteração foi validada no navegador.
+
+Marcações públicas
+
+O fluxo de marcação pública foi validado.
+
+Testado:
+
+seleção de serviço;
+
+seleção de profissional;
+
+seleção de data;
+
+seleção de horário;
+
+preenchimento dos dados do cliente;
+
+criação da marcação;
+
+reutilização de cliente existente através do email;
+
+criação da marcação com estado pendente;
+
+controlo de capacidade do horário;
+
+libertação do horário após cancelamento.
+
+Calendário
+
+Foram validadas:
+
+vista semanal;
+
+vista diária;
+
+navegação entre dias;
+
+navegação entre semanas;
+
+abertura da vista diária através do cabeçalho do dia;
+
+abertura do detalhe da marcação;
+
+confirmação;
+
+cancelamento;
+
+remoção da marcação cancelada da vista.
+
+Correção do posicionamento dos cartões
+
+Foi identificado um desalinhamento entre os cartões das marcações e a grelha horária da vista semanal.
+
+A causa estava no cálculo da posição vertical através de percentagens relativamente à altura total do contentor.
+
+O cálculo foi alterado para utilizar posições em pixels alinhadas com a altura real das linhas:
+
+vista semanal: 80px por hora;
+
+vista diária: 90px por hora.
+
+A correção foi testada com marcações reais e validada visualmente.
+
+Validação
+
+npm run build: OK
+
+Login Booking: OK
+
+Estado Booking: OK
+
+Marcações públicas: OK
+
+Calendário semanal: OK
+
+Calendário diário: OK
+
+Confirmar/cancelar marcações: OK
+
+Posicionamento dos cartões: OK
+
+Segurança
+
+Durante esta fase também foram aplicadas as alterações de hardening já previstas:
+
+complete_first_login() deixou de ser executável diretamente pelo utilizador autenticado;
+
+get_booking_status(uuid) deixou de ser executável diretamente pelo utilizador autenticado;
+
+criar_empresa_booking(text,text) deixou de ser executável diretamente pelo utilizador autenticado;
+
+is_nexora_admin() mantém execução autenticada porque é utilizado pelas policies RLS;
+
+criar_agendamento(...) mantém execução pública de forma intencional para suportar marcações públicas.
+
+Estado da Etapa 12
+
+A Etapa 12 — Revisão geral e estabilização — encontra-se EM ANDAMENTO.
+
+Próximos objetivos:
+
+completar a revisão funcional;
+
+completar o hardening restante;
+
+validar os fluxos ainda não testados;
+
+validar produção;
+
+atualizar documentação;
+
+criar commit;
+
+fazer push;
+
+validar o deploy.
+
 Este ficheiro regista as principais alterações, decisões e marcos do desenvolvimento do Nexora Booking.
 
 ---
@@ -11,7 +161,9 @@ Este ficheiro regista as principais alterações, decisões e marcos do desenvol
 Criada a estrutura de documentação permanente do projeto:
 
 - `docs/CURRENT-STATE.md`
+
 - `docs/ROADMAP.md`
+
 - `docs/CHANGELOG.md`
 
 ## Objetivo
@@ -29,8 +181,11 @@ Validada a estrutura da tabela `agendamentos` no Supabase.
 Campos financeiros relevantes:
 
 - `empresa_id`
+
 - `inicio`
+
 - `estado`
+
 - `valor`
 
 ## Regra financeira confirmada
@@ -44,13 +199,17 @@ entram no cálculo da receita.
 Não entram:
 
 - `cancelado`
+
 - `confirmado`
+
 - `pendente`
 
 ## Dados encontrados na validação
 
 - 3 concluídos — €100,00
+
 - 4 confirmados — €140,00
+
 - 2 cancelados — €80,00
 
 ---
@@ -68,11 +227,17 @@ Criar uma visão mensal dos últimos 12 meses, incluindo meses sem movimentos.
 Requisitos definidos:
 
 - 12 meses;
+
 - receita mensal;
+
 - número de concluídos;
+
 - meses sem receita = €0,00;
+
 - ordenação cronológica;
+
 - respeito pelo fuso horário da empresa;
+
 - somente `concluido` gera receita.
 
 ---
@@ -86,21 +251,33 @@ O histórico financeiro mensal foi implementado e validado.
 Funcionalidades:
 
 - apresentação dos últimos 12 meses;
+
 - meses sem movimentos apresentados como €0,00;
+
 - receita mensal;
+
 - quantidade de marcações concluídas por mês;
+
 - total dos últimos 12 meses;
+
 - identificação do mês atual;
+
 - cálculo baseado exclusivamente em `estado = 'concluido'`;
+
 - marcações canceladas excluídas da receita;
+
 - marcações confirmadas excluídas até serem concluídas;
+
 - cálculo respeitando o fuso horário da empresa.
 
 ## Validação
 
 - Estrutura do Supabase validada.
+
 - Dados financeiros validados.
+
 - Build de produção: **OK**
+
 - Teste no navegador: **OK**
 
 ---
@@ -114,14 +291,23 @@ Foi implementada a visão anual do módulo financeiro.
 Funcionalidades:
 
 - seleção do ano;
+
 - navegação entre anos;
+
 - apresentação de janeiro a dezembro;
+
 - receita anual;
+
 - quantidade anual de marcações concluídas;
+
 - média mensal;
+
 - identificação do melhor mês com receita;
+
 - identificação do pior mês com receita;
+
 - meses sem receita apresentados como €0,00;
+
 - utilização da mesma regra financeira do histórico dos 12 meses.
 
 A regra permanece:
@@ -137,16 +323,23 @@ A regra permanece:
 ## Adicionado
 
 - Modal de detalhes das marcações.
+
 - Clique nas marcações da vista diária e semanal.
+
 - Navegação da vista semanal para a vista diária através dos cabeçalhos dos dias.
+
 - Novo componente `MarcacaoCalendarioButton`.
 
 ## Alterado
 
 - Ações de gestão de marcações passaram para o modal de detalhes.
+
 - Modal otimizado para ocupar menos espaço no ecrã.
+
 - Permissões `agenda` e `marcacoes` continuam separadas.
+
 - Área de Clientes passou a validar a permissão `clientes`.
+
 - A permissão `clientes` mantém acesso a consulta, criação, edição e eliminação.
 
 ## Validação
@@ -178,14 +371,23 @@ Sem acesso ao Booking.
 ## Permissões disponíveis
 
 - `agenda`
+
 - `clientes`
+
 - `marcacoes`
+
 - `servicos`
+
 - `profissionais`
+
 - `disponibilidade`
+
 - `bloqueios`
+
 - `financeiro`
+
 - `configuracoes`
+
 - `equipa`
 
 ## Estrutura
@@ -193,12 +395,15 @@ Sem acesso ao Booking.
 Utilização de:
 
 - `company_members`
+
 - `company_member_permissions`
 
 O estado do membro é controlado através de:
 
 - `is_active`
+
 - `role`
+
 - `must_change_password`
 
 Os funcionários não são eliminados quando deixam a empresa. São desativados.
@@ -210,11 +415,17 @@ Os funcionários não são eliminados quando deixam a empresa. São desativados.
 As páginas do Booking foram revistas para validar:
 
 - autenticação;
+
 - existência do membro;
+
 - empresa;
+
 - estado ativo;
+
 - `must_change_password`;
+
 - role;
+
 - permissão necessária.
 
 O acesso direto através de URL também passou a ser protegido pelo proxy.
@@ -230,25 +441,41 @@ Foi realizada uma revisão das APIs do Booking.
 Foram revistas rotas relacionadas com:
 
 - agendamentos;
+
 - estados;
+
 - cancelamentos;
+
 - conclusões;
+
 - clientes;
+
 - serviços;
+
 - profissionais;
+
 - disponibilidade;
+
 - bloqueios;
+
 - configurações;
+
 - onboarding.
 
 As APIs foram verificadas para garantir:
 
 - autenticação;
+
 - membro válido;
+
 - membro ativo;
+
 - `must_change_password`;
+
 - administrador ou permissão necessária;
+
 - empresa correta;
+
 - acesso ao recurso correto.
 
 A lógica funcional existente foi preservada.
@@ -262,21 +489,37 @@ Foi realizada uma revisão das policies e do isolamento por empresa.
 Foram verificadas as principais tabelas do Booking, incluindo:
 
 - `agendamentos`
+
 - `bloqueios`
+
 - `clientes`
+
 - `companies`
+
 - `company_ai_settings`
+
 - `company_documents`
+
 - `company_knowledge`
+
 - `company_member_permissions`
+
 - `company_members`
+
 - `company_subscriptions`
+
 - `product_subscriptions`
+
 - `products`
+
 - `profissionais`
+
 - `profissionais_servicos`
+
 - `servicos`
+
 - `configuracoes_agendamento`
+
 - `disponibilidade`
 
 ## Funções de autorização
@@ -284,6 +527,7 @@ Foram verificadas as principais tabelas do Booking, incluindo:
 Foram utilizadas/revistas as funções:
 
 - `private.is_company_admin(uuid)`
+
 - `private.has_company_permission(uuid, text)`
 
 As funções utilizam `SECURITY DEFINER` com `search_path` restrito.
@@ -327,8 +571,11 @@ Foi criada a função:
 A função:
 
 - verifica o membro autenticado;
+
 - verifica a empresa;
+
 - verifica se o membro está ativo;
+
 - devolve apenas o estado `agendamento_ativo`.
 
 A página principal do Booking passou a utilizar esta função para obter o estado global.
@@ -352,6 +599,7 @@ Foi realizado teste real utilizando o funcionário:
 Permissões:
 
 - `agenda`
+
 - `clientes`
 
 ## Resultado
@@ -359,11 +607,13 @@ Permissões:
 Acesso confirmado:
 
 - Calendário;
+
 - Clientes.
 
 Acesso bloqueado:
 
 - Financeiro;
+
 - restantes áreas sem permissão.
 
 Também foram realizados testes através de URLs diretas.
@@ -383,18 +633,31 @@ Resultado:
 Foram revistas:
 
 - autenticação;
+
 - autorização;
+
 - proxy;
+
 - páginas;
+
 - APIs;
+
 - RLS;
+
 - policies;
+
 - permissões;
+
 - isolamento por empresa;
+
 - funções `SECURITY DEFINER`;
+
 - `GRANT EXECUTE`;
+
 - primeiro acesso;
+
 - funcionários ativos/inativos;
+
 - acesso direto por URL.
 
 ## Pontos de hardening identificados
@@ -402,9 +665,13 @@ Foram revistas:
 O Supabase Security Advisor ainda apresenta alguns avisos que ficam registados para revisão posterior:
 
 1. `products` possui RLS ativo mas sem policies.
+
 2. Leaked Password Protection está desativada.
+
 3. O fluxo `onboarding/company` pode ser endurecido relativamente a membros inativos.
+
 4. `complete_first_login()` pode ser endurecida para validar de forma mais rigorosa a alteração efetiva da password.
+
 5. A função pública `criar_agendamento` possui execução anónima de forma intencional, necessária ao fluxo de Booking público, devendo continuar a ser revista como parte do hardening de produção.
 
 Estes pontos ficam separados da auditoria funcional já concluída.
@@ -418,12 +685,19 @@ Estes pontos ficam separados da auditoria funcional já concluída.
 Objetivos:
 
 - revisão funcional completa;
+
 - revisão da interface;
+
 - testes dos principais fluxos;
+
 - revisão de segurança adicional;
+
 - hardening;
+
 - performance;
+
 - validação de produção;
+
 - preparação do deploy.
 
 ---
@@ -433,22 +707,35 @@ Objetivos:
 ## Concluído
 
 - [x] Financeiro base
+
 - [x] Histórico financeiro dos 12 meses
+
 - [x] Visão anual
+
 - [x] Sistema de permissões
+
 - [x] Proteção das páginas
+
 - [x] Proteção das APIs
+
 - [x] Auditoria RLS
+
 - [x] Teste com funcionário
+
 - [x] Correção do estado do Booking
+
 - [x] Auditoria funcional de segurança
 
 ## Próximo
 
 - [ ] Revisão geral
+
 - [ ] Hardening final
+
 - [ ] Testes finais
+
 - [ ] Preparação para produção
+
 - [ ] Deploy
 
 ---
@@ -458,11 +745,19 @@ Objetivos:
 Antes de iniciar uma nova etapa importante:
 
 1. Implementar.
+
 2. Testar.
+
 3. Corrigir.
+
 4. Confirmar funcionamento.
+
 5. Atualizar `CURRENT-STATE.md`.
+
 6. Atualizar `ROADMAP.md`.
+
 7. Atualizar `CHANGELOG.md`.
+
 8. Criar commit Git.
+
 9. Fazer push apenas quando explicitamente decidido.

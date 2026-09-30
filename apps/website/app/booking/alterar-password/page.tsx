@@ -32,57 +32,79 @@ export default function AlterarPasswordPage() {
 
         setACarregar(true);
 
-        const {
-            data: { user },
-            error: userError,
-        } = await supabase.auth.getUser();
+        try {
+            const {
+                data: { user },
+                error: userError,
+            } = await supabase.auth.getUser();
 
-        if (userError || !user) {
-            setACarregar(false);
-            setErro("A sessão expirou. Volte a iniciar sessão.");
-            return;
-        }
+            if (userError || !user) {
+                setErro("A sessão expirou. Volte a iniciar sessão.");
+                return;
+            }
 
-        const { error: passwordError } = await supabase.auth.updateUser({
-            password,
-        });
+            const { error: passwordError } =
+                await supabase.auth.updateUser({
+                    password,
+                });
 
-        if (passwordError) {
-            setACarregar(false);
-            setErro(
-                passwordError.message ||
-                "Não foi possível alterar a palavra-passe."
+            if (passwordError) {
+                setErro(
+                    passwordError.message ||
+                        "Não foi possível alterar a palavra-passe."
+                );
+                return;
+            }
+
+            const response = await fetch(
+                "/api/booking/complete-first-login",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                }
             );
-            return;
-        }
 
-        const { data: completed, error: memberError } =
-            await supabase.rpc("complete_first_login");
+            const data = await response.json();
 
-        if (memberError) {
-            console.error("Erro ao concluir primeiro acesso:", memberError);
-            return;
-        }
+            if (!response.ok) {
+                console.error(
+                    "Erro ao concluir primeiro acesso:",
+                    data
+                );
 
-        if (!completed) {
-            console.error("Não foi possível concluir o primeiro acesso.");
-            return;
-        }
+                setErro(
+                    "A palavra-passe foi alterada, mas não foi possível concluir a ativação do acesso. Contacte o administrador."
+                );
+                return;
+            }
 
-        if (memberError) {
-            setACarregar(false);
-            setErro(
-                "A palavra-passe foi alterada, mas não foi possível concluir a ativação do acesso. Contacte o administrador."
+            if (!data?.success) {
+                setErro(
+                    "Não foi possível concluir o primeiro acesso. Contacte o administrador."
+                );
+                return;
+            }
+
+            setSucesso("Palavra-passe alterada com sucesso.");
+
+            setTimeout(() => {
+                router.replace("/nexora-ai/booking");
+                router.refresh();
+            }, 1000);
+        } catch (error) {
+            console.error(
+                "Erro inesperado ao concluir primeiro acesso:",
+                error
             );
-            return;
+
+            setErro(
+                "Ocorreu um erro ao concluir o primeiro acesso. Tente novamente."
+            );
+        } finally {
+            setACarregar(false);
         }
-
-        setSucesso("Palavra-passe alterada com sucesso.");
-
-        setTimeout(() => {
-            router.replace("/nexora-ai/booking");
-            router.refresh();
-        }, 1000);
     }
 
     async function sair() {
@@ -104,8 +126,8 @@ export default function AlterarPasswordPage() {
                     </h1>
 
                     <p className="mt-3 text-slate-400">
-                        Por motivos de segurança, deve definir uma nova palavra-passe
-                        antes de continuar.
+                        Por motivos de segurança, deve definir uma nova
+                        palavra-passe antes de continuar.
                     </p>
                 </div>
 
@@ -125,6 +147,7 @@ export default function AlterarPasswordPage() {
                         className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
                         required
                         minLength={8}
+                        disabled={aCarregar}
                     />
 
                     <label className="mt-5 block text-sm font-semibold text-slate-300">
@@ -134,11 +157,14 @@ export default function AlterarPasswordPage() {
                     <input
                         type="password"
                         value={confirmarPassword}
-                        onChange={(e) => setConfirmarPassword(e.target.value)}
+                        onChange={(e) =>
+                            setConfirmarPassword(e.target.value)
+                        }
                         placeholder="Repita a nova palavra-passe"
                         className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
                         required
                         minLength={8}
+                        disabled={aCarregar}
                     />
 
                     {erro && (
@@ -166,7 +192,8 @@ export default function AlterarPasswordPage() {
                     <button
                         type="button"
                         onClick={sair}
-                        className="mt-4 w-full rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                        disabled={aCarregar}
+                        className="mt-4 w-full rounded-xl border border-slate-700 px-6 py-3 font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white disabled:opacity-50"
                     >
                         Sair
                     </button>

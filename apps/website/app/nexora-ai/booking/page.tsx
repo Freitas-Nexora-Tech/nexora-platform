@@ -54,11 +54,26 @@ export default async function NexoraBookingPage() {
         redirect("/booking/login");
     }
 
-    // Estado do Booking: leitura segura para qualquer membro ativo da empresa.
-    // As restantes configurações continuam protegidas pela permissão "configuracoes".
-    const { data: estadoBooking } = await supabase.rpc("get_booking_status", {
-        p_company_id: empresa.id,
-    });
+    // Estado do Booking.
+    // A função RPC get_booking_status foi protegida e deixou de estar
+    // disponível para utilizadores autenticados. Como esta página é
+    // renderizada no servidor, usamos o cliente administrativo para
+    // consultar apenas a configuração da empresa já validada pelo
+    // getBookingAccess().
+    const { createSupabaseAdminClient } = await import("@/lib/supabase-admin");
+
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    const { data: configuracaoBooking } = await supabaseAdmin
+        .from("configuracoes_agendamento")
+        .select(
+            "agendamento_ativo, fuso_horario, intervalo_marcacao_minutos, antecedencia_minima_minutos, antecedencia_maxima_dias, capacidade_por_horario"
+        )
+        .eq("empresa_id", empresa.id)
+        .maybeSingle();
+
+    const estadoBooking =
+        configuracaoBooking?.agendamento_ativo === true;
 
     const { data: configuracao } = access.can("configuracoes")
         ? await supabase

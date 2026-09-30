@@ -126,6 +126,8 @@ Novos funcionários podem ser obrigados a alterar a password através de:
 
 O sistema bloqueia o acesso às áreas normais do Booking enquanto essa alteração estiver pendente.
 
+O fluxo foi transferido para uma API server-side e testado.
+
 ---
 
 # 11 — Auditoria de segurança
@@ -167,7 +169,9 @@ Foram revistas as APIs de:
 - disponibilidade;
 - bloqueios;
 - configurações;
-- onboarding.
+- onboarding;
+- login;
+- primeiro acesso.
 
 As APIs foram revistas para garantir:
 
@@ -227,13 +231,15 @@ Foi identificado e corrigido um problema no qual:
 - administrador via o Booking como ativo;
 - funcionário via o Booking como suspenso.
 
-A causa estava na leitura de `configuracoes_agendamento`, que estava protegida pela permissão `configuracoes`.
+A causa estava na forma como o estado do Booking era consultado.
 
-Foi criada a função:
+A função:
 
 `public.get_booking_status(uuid)`
 
-A função permite consultar de forma segura apenas o estado global do Booking para membros ativos da respetiva empresa.
+foi retirada do fluxo de consulta autenticado e teve a sua execução restringida.
+
+O dashboard passou a consultar `configuracoes_agendamento.agendamento_ativo` server-side através do cliente administrativo, depois de validar a empresa e o acesso do utilizador.
 
 Problema validado como resolvido.
 
@@ -246,9 +252,14 @@ A auditoria funcional foi concluída.
 Permanecem identificados alguns pontos de hardening:
 
 1. `products` possui RLS ativo sem policies.
-2. Leaked Password Protection ainda não está ativado.
+
+2. Leaked Password Protection ainda não está ativado/disponível na configuração atual.
+
 3. O fluxo `onboarding/company` deve ser revisto relativamente a membros inativos.
-4. `complete_first_login()` pode ser endurecida para validar mais rigorosamente a alteração efetiva da password.
+
+4. O fluxo de criação de empresa poderá futuramente ser tornado transacional.
+
+5. A atualização de permissões de profissionais poderá futuramente ser tornada transacional.
 
 Estes pontos ficam registados para a revisão de estabilização e preparação para produção.
 
@@ -256,7 +267,7 @@ Estes pontos ficam registados para a revisão de estabilização e preparação 
 
 # 12 — Revisão geral e estabilização
 
-**Estado: PRÓXIMA ETAPA**
+**Estado: EM ANDAMENTO**
 
 Objetivo:
 
@@ -266,19 +277,23 @@ Fazer a revisão final do Nexora Booking antes da preparação para produção.
 
 ## 12.1 — Revisão funcional
 
-Verificar:
+### Já validado
 
 - Login;
 - primeiro acesso;
 - alteração de password;
-- logout;
-- recuperação de acesso;
 - dashboard;
 - calendário;
-- marcações;
+- marcações públicas;
 - clientes;
-- serviços;
 - profissionais;
+- estado do Booking.
+
+### A validar
+
+- logout;
+- recuperação de acesso;
+- serviços;
 - disponibilidade;
 - bloqueios;
 - configurações;
@@ -321,7 +336,6 @@ Rever:
 - `products`;
 - Leaked Password Protection;
 - `onboarding/company`;
-- `complete_first_login()`;
 - funções `SECURITY DEFINER`;
 - `GRANT EXECUTE`;
 - RLS;
@@ -377,8 +391,10 @@ Antes do lançamento:
 - validar variáveis de ambiente;
 - executar testes finais;
 - criar backup;
-- criar commit final;
-- preparar deploy.
+- criar commit;
+- fazer push;
+- validar deploy;
+- realizar teste final no ambiente publicado.
 
 ---
 
@@ -393,11 +409,20 @@ Antes do lançamento:
 - [x] RLS auditado
 - [x] Teste com funcionário
 - [x] Estado do Booking corrigido
+- [x] Login Booking
+- [x] Primeiro acesso
+- [x] Marcações públicas
+- [x] Reutilização de clientes
+- [x] Confirmar/cancelar marcações
+- [x] Calendário semanal
+- [x] Calendário diário
+- [x] Posicionamento dos cartões no calendário
 - [x] Auditoria funcional de segurança
 - [ ] Revisão geral
 - [ ] Hardening final
 - [ ] Testes finais
 - [ ] Preparação para produção
+- [ ] Deploy final validado
 
 ---
 
@@ -405,6 +430,6 @@ Antes do lançamento:
 
 **Etapa 12 — Revisão geral e estabilização**
 
-Próximo objetivo:
+Objetivo atual:
 
 **Revisar, testar e preparar o Nexora Booking para produção.**

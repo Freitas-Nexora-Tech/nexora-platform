@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { ReactNode, useState } from "react";
+import { useRouter } from "next/navigation";
 import DetalhesMarcacaoModal from "./DetalhesMarcacaoModal";
 
-type MarcacaoCalendarioButtonProps = {
+type Props = {
     id: string;
     cliente: string;
     servico: string;
@@ -12,9 +12,9 @@ type MarcacaoCalendarioButtonProps = {
     inicio: string;
     fim: string;
     estado: string;
-    notas: string | null;
+    notas?: string | null;
     podeGerir: boolean;
-    children: React.ReactNode;
+    children: ReactNode;
 };
 
 export default function MarcacaoCalendarioButton({
@@ -28,23 +28,40 @@ export default function MarcacaoCalendarioButton({
     notas,
     podeGerir,
     children,
-}: MarcacaoCalendarioButtonProps) {
+}: Props) {
+    const router = useRouter();
     const [aberto, setAberto] = useState(false);
+
+    function abrirModal() {
+        setAberto(true);
+    }
+
+    function fecharModal() {
+        setAberto(false);
+    }
+
+    function editar() {
+        setAberto(false);
+        router.push(
+            `/nexora-ai/booking/calendario/editar/${id}`,
+        );
+    }
 
     return (
         <>
             <button
                 type="button"
-                onClick={() => setAberto(true)}
+                onClick={abrirModal}
                 className="block h-full w-full cursor-pointer text-left"
-                aria-label={`Ver detalhes da marcação de ${cliente}`}
+                aria-label={`Abrir detalhes da marcação de ${cliente}`}
             >
                 {children}
             </button>
 
             <DetalhesMarcacaoModal
                 aberto={aberto}
-                onFechar={() => setAberto(false)}
+                onFechar={fecharModal}
+                agendamentoId={id}
                 cliente={cliente}
                 servico={servico}
                 profissional={profissional}
@@ -53,13 +70,7 @@ export default function MarcacaoCalendarioButton({
                 estado={estado}
                 notas={notas}
                 podeGerir={podeGerir}
-                onEditar={
-                    podeGerir
-                        ? () => {
-                              window.location.href = `/nexora-ai/booking/calendario/editar/${id}`;
-                          }
-                        : undefined
-                }
+                onEditar={editar}
             />
         </>
     );

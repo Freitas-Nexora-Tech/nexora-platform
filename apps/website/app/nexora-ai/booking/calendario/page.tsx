@@ -236,7 +236,8 @@ function calcularPosicao(
     agendamento: Agendamento,
     timeZone: string,
     horaInicio: number,
-    horaFim: number
+    horaFim: number,
+    alturaPorHora: number
 ) {
     const inicio =
         obterHoraMinutos(
@@ -260,24 +261,31 @@ function calcularPosicao(
         horaFim * 60
     );
 
-    const totalMinutos =
-        (horaFim - horaInicio) * 60;
+    /*
+     * A grelha usa uma altura fixa por hora.
+     * Calculamos a posição diretamente em pixels para
+     * manter o cartão exatamente alinhado com as linhas
+     * horárias, independentemente da altura total do contentor.
+     */
+    const minutosDesdeInicio =
+        inicioEfetivo -
+        horaInicio * 60;
+
+    const duracaoMinutos =
+        fimEfetivo -
+        inicioEfetivo;
 
     const top =
-        ((inicioEfetivo -
-            horaInicio * 60) /
-            totalMinutos) *
-        100;
+        (minutosDesdeInicio / 60) *
+        alturaPorHora;
 
     const height =
-        ((fimEfetivo -
-            inicioEfetivo) /
-            totalMinutos) *
-        100;
+        (duracaoMinutos / 60) *
+        alturaPorHora;
 
     return {
         top,
-        height: Math.max(height, 6.5),
+        height: Math.max(height, 30),
     };
 }
 
@@ -515,8 +523,9 @@ export default async function NexoraBookingCalendarioPage({
         });
 
     const todosAgendamentos =
-        (agendamentos ??
-            []) as unknown as Agendamento[];
+        ((agendamentos ?? []) as unknown as Agendamento[]).filter(
+            (agendamento) => agendamento.estado !== "cancelado",
+        );
 
     const agendamentosPeriodo =
         todosAgendamentos.filter(
@@ -528,8 +537,10 @@ export default async function NexoraBookingCalendarioPage({
                     );
 
                 return (
+                    agendamento.estado !==
+                        "cancelado" &&
                     dataLocal >=
-                    inicioSemana &&
+                        inicioSemana &&
                     dataLocal <= fimSemana
                 );
             }
@@ -832,36 +843,58 @@ export default async function NexoraBookingCalendarioPage({
 
                                             return (
                                                 <Link
-                                                    key={dia}
-                                                    href={linkCalendario(dia, "dia")}
-                                                    className={`border-r border-slate-800 p-3 text-center transition hover:bg-cyan-400/10 ${eHoje ? "bg-cyan-400/10" : ""
-                                                        }`}
-                                                    title={`Abrir agenda de ${formatarData(dia, timeZone)}`}
+                                                    key={
+                                                        dia
+                                                    }
+                                                    href={linkCalendario(
+                                                        dia,
+                                                        "dia"
+                                                    )}
+                                                    className={`border-r border-slate-800 p-3 text-center transition hover:bg-cyan-400/10 ${
+                                                        eHoje
+                                                            ? "bg-cyan-400/10"
+                                                            : ""
+                                                    }`}
                                                 >
                                                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                        {new Intl.DateTimeFormat("pt-PT", {
-                                                            weekday: "short",
-                                                        }).format(
-                                                            new Date(`${dia}T12:00:00`)
+                                                        {new Intl.DateTimeFormat(
+                                                            "pt-PT",
+                                                            {
+                                                                weekday:
+                                                                    "short",
+                                                            }
+                                                        ).format(
+                                                            new Date(
+                                                                `${dia}T12:00:00`
+                                                            )
                                                         )}
                                                     </p>
 
                                                     <p
-                                                        className={`mt-1 text-lg font-bold ${eHoje
-                                                            ? "text-cyan-400"
-                                                            : "text-slate-200"
-                                                            }`}
+                                                        className={`mt-1 text-lg font-bold ${
+                                                            eHoje
+                                                                ? "text-cyan-400"
+                                                                : "text-slate-200"
+                                                        }`}
                                                     >
-                                                        {new Intl.DateTimeFormat("pt-PT", {
-                                                            day: "2-digit",
-                                                            month: "2-digit",
-                                                        }).format(
-                                                            new Date(`${dia}T12:00:00`)
+                                                        {new Intl.DateTimeFormat(
+                                                            "pt-PT",
+                                                            {
+                                                                day: "2-digit",
+                                                                month: "2-digit",
+                                                            }
+                                                        ).format(
+                                                            new Date(
+                                                                `${dia}T12:00:00`
+                                                            )
                                                         )}
+                                                    </p>
+
+                                                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                                                        Ver dia
                                                     </p>
                                                 </Link>
                                             );
-
                                         }
                                     )}
                                 </div>
@@ -942,11 +975,12 @@ export default async function NexoraBookingCalendarioPage({
                                                         ) => {
                                                             const posicao =
                                                                 calcularPosicao(
-                                                                    agendamento,
-                                                                    timeZone,
-                                                                    horasInicio,
-                                                                    horasFim
-                                                                );
+                                                                        agendamento,
+                                                                        timeZone,
+                                                                        horasInicio,
+                                                                        horasFim,
+                                                                        80
+                                                                    );
 
                                                             const cliente =
                                                                 obterNome(
@@ -965,11 +999,13 @@ export default async function NexoraBookingCalendarioPage({
 
                                                             return (
                                                                 <div
-                                                                    key={agendamento.id}
+                                                                    key={
+                                                                        agendamento.id
+                                                                    }
                                                                     className="absolute left-1 right-1"
                                                                     style={{
-                                                                        top: `${posicao.top}%`,
-                                                                        height: `${posicao.height}%`,
+                                                                        top: `${posicao.top}px`,
+                                                                        height: `${posicao.height}px`,
                                                                     }}
                                                                 >
                                                                     <MarcacaoCalendarioButton
@@ -988,31 +1024,32 @@ export default async function NexoraBookingCalendarioPage({
                                                                                 agendamento.estado
                                                                             )}`}
                                                                         >
-                                                                            <p className="truncate font-bold">
-                                                                                {formatarHora(
-                                                                                    agendamento.inicio,
-                                                                                    timeZone
-                                                                                )}{" "}
-                                                                                —{" "}
-                                                                                {formatarHora(
-                                                                                    agendamento.fim,
-                                                                                    timeZone
-                                                                                )}
-                                                                            </p>
-
-                                                                            <p className="mt-1 line-clamp-2 break-words font-semibold leading-tight">
-                                                                                {cliente}
-                                                                            </p>
-
-                                                                            <p className="line-clamp-2 break-words text-[11px] leading-tight opacity-80">
-                                                                                {servico}
-                                                                            </p>
-
-                                                                            {posicao.height >= 7 && (
-                                                                                <p className="line-clamp-1 break-words text-[10px] leading-tight opacity-70">
-                                                                                    {profissional}
-                                                                                </p>
+        <p className="truncate font-bold">
+                                                                            {formatarHora(
+                                                                                agendamento.inicio,
+                                                                                timeZone
+                                                                            )}{" "}
+                                                                            —{" "}
+                                                                            {formatarHora(
+                                                                                agendamento.fim,
+                                                                                timeZone
                                                                             )}
+                                                                        </p>
+
+                                                                        <p className="mt-1 line-clamp-2 break-words font-semibold leading-tight">
+                                                                            {cliente}
+                                                                        </p>
+
+                                                                        <p className="line-clamp-2 break-words text-[11px] leading-tight opacity-80">
+                                                                            {servico}
+                                                                        </p>
+
+                                                                        {posicao.height >= 56 && (
+                                                                            <p className="line-clamp-1 break-words text-[10px] leading-tight opacity-70">
+                                                                                {profissional}
+                                                                            </p>
+                                                                        )}
+
                                                                         </div>
                                                                     </MarcacaoCalendarioButton>
                                                                 </div>
@@ -1113,11 +1150,12 @@ export default async function NexoraBookingCalendarioPage({
                                                 ) => {
                                                     const posicao =
                                                         calcularPosicao(
-                                                            agendamento,
-                                                            timeZone,
-                                                            horasInicio,
-                                                            horasFim
-                                                        );
+                                                                        agendamento,
+                                                                        timeZone,
+                                                                        horasInicio,
+                                                                        horasFim,
+                                                                        90
+                                                                    );
 
                                                     const cliente =
                                                         obterNome(
@@ -1136,11 +1174,13 @@ export default async function NexoraBookingCalendarioPage({
 
                                                     return (
                                                         <div
-                                                            key={agendamento.id}
+                                                            key={
+                                                                agendamento.id
+                                                            }
                                                             className="absolute left-2 right-2"
                                                             style={{
-                                                                top: `${posicao.top}%`,
-                                                                height: `${posicao.height}%`,
+                                                                top: `${posicao.top}px`,
+                                                                height: `${posicao.height}px`,
                                                             }}
                                                         >
                                                             <MarcacaoCalendarioButton
@@ -1159,53 +1199,54 @@ export default async function NexoraBookingCalendarioPage({
                                                                         agendamento.estado
                                                                     )}`}
                                                                 >
-                                                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                                                        <div className="min-w-0">
-                                                                            <p className="break-words text-base font-bold leading-tight">
-                                                                                {cliente}
-                                                                            </p>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                                    <div className="min-w-0">
+                                                                        <p className="break-words text-base font-bold leading-tight">
+                                                                            {cliente}
+                                                                        </p>
 
-                                                                            <p className="mt-1 break-words text-sm leading-tight opacity-90">
-                                                                                {servico}
-                                                                            </p>
+                                                                        <p className="mt-1 break-words text-sm leading-tight opacity-90">
+                                                                            {servico}
+                                                                        </p>
 
-                                                                            <p className="mt-1 break-words text-xs leading-tight opacity-70">
-                                                                                Profissional: {profissional}
-                                                                            </p>
-                                                                        </div>
-
-                                                                        <div className="shrink-0 lg:text-right">
-                                                                            <p className="text-sm font-bold">
-                                                                                {formatarHora(
-                                                                                    agendamento.inicio,
-                                                                                    timeZone
-                                                                                )}{" "}
-                                                                                —{" "}
-                                                                                {formatarHora(
-                                                                                    agendamento.fim,
-                                                                                    timeZone
-                                                                                )}
-                                                                            </p>
-
-                                                                            <p className="mt-1 text-xs font-semibold uppercase">
-                                                                                {nomeEstado(
-                                                                                    agendamento.estado
-                                                                                )}
-                                                                            </p>
-                                                                        </div>
+                                                                        <p className="mt-1 break-words text-xs leading-tight opacity-70">
+                                                                            Profissional: {profissional}
+                                                                        </p>
                                                                     </div>
 
-                                                                    {agendamento.notas && (
-                                                                        <div className="mt-3 rounded-lg border border-white/10 bg-black/10 p-2">
-                                                                            <p className="text-[10px] font-semibold uppercase tracking-wider opacity-60">
-                                                                                Notas
-                                                                            </p>
+                                                                    <div className="shrink-0 lg:text-right">
+                                                                        <p className="text-sm font-bold">
+                                                                            {formatarHora(
+                                                                                agendamento.inicio,
+                                                                                timeZone
+                                                                            )}{" "}
+                                                                            —{" "}
+                                                                            {formatarHora(
+                                                                                agendamento.fim,
+                                                                                timeZone
+                                                                            )}
+                                                                        </p>
 
-                                                                            <p className="mt-1 text-xs opacity-80">
-                                                                                {agendamento.notas}
-                                                                            </p>
-                                                                        </div>
-                                                                    )}
+                                                                        <p className="mt-1 text-xs font-semibold uppercase">
+                                                                            {nomeEstado(
+                                                                                agendamento.estado
+                                                                            )}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {agendamento.notas && (
+                                                                    <div className="mt-3 rounded-lg border border-white/10 bg-black/10 p-2">
+                                                                        <p className="text-[10px] font-semibold uppercase tracking-wider opacity-60">
+                                                                            Notas
+                                                                        </p>
+
+                                                                        <p className="mt-1 text-xs opacity-80">
+                                                                            {agendamento.notas}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+
                                                                 </div>
                                                             </MarcacaoCalendarioButton>
                                                         </div>
