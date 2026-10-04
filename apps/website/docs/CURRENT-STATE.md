@@ -7,9 +7,13 @@ O Nexora Booking é a plataforma de gestão de reservas da Nexora Tech.
 Tecnologias principais:
 
 - Next.js
+
 - TypeScript
+
 - Supabase
+
 - Git / GitHub
+
 - Netlify
 
 ---
@@ -25,12 +29,19 @@ Tecnologias principais:
 Implementado:
 
 - cálculo da receita;
+
 - cálculo do caixa;
+
 - filtro por empresa;
+
 - utilização do fuso horário da empresa;
+
 - apenas marcações `concluido` geram receita;
+
 - marcações `cancelado` não entram;
+
 - marcações `confirmado` não entram até serem concluídas;
+
 - marcações `pendente` não entram.
 
 ---
@@ -42,16 +53,27 @@ Implementado:
 Implementado e validado:
 
 - histórico dos últimos 12 meses;
+
 - meses sem movimentos apresentados como €0,00;
+
 - receita mensal;
+
 - quantidade de marcações concluídas;
+
 - total dos últimos 12 meses;
+
 - identificação do mês atual;
+
 - apenas `concluido` entra na receita;
+
 - cancelados excluídos;
+
 - confirmados excluídos até serem concluídos;
+
 - respeito pelo fuso horário da empresa;
+
 - build de produção validado;
+
 - teste visual concluído.
 
 ---
@@ -63,12 +85,19 @@ Implementado e validado:
 Implementado:
 
 - visão financeira anual;
+
 - total anual;
+
 - visão mensal;
+
 - indicadores anuais;
+
 - gráficos financeiros;
+
 - utilização da mesma base financeira do 9K.2;
+
 - sem duplicação desnecessária da regra financeira;
+
 - cálculo baseado exclusivamente em marcações `concluido`.
 
 ---
@@ -100,14 +129,23 @@ Não pode aceder ao Booking.
 ## Permissões disponíveis
 
 - `agenda`
+
 - `clientes`
+
 - `marcacoes`
+
 - `servicos`
+
 - `profissionais`
+
 - `disponibilidade`
+
 - `bloqueios`
+
 - `financeiro`
+
 - `configuracoes`
+
 - `equipa`
 
 ---
@@ -129,9 +167,13 @@ O acesso direto através de URL é validado antes de permitir a entrada na área
 As páginas Booking possuem verificações próprias de:
 
 - autenticação;
+
 - membro da empresa;
+
 - utilizador ativo;
+
 - alteração obrigatória de password;
+
 - administrador ou permissão necessária.
 
 ### APIs
@@ -139,11 +181,17 @@ As páginas Booking possuem verificações próprias de:
 As APIs Booking foram revistas para validar:
 
 - autenticação;
+
 - existência do membro;
+
 - estado ativo;
+
 - `must_change_password`;
+
 - administrador ou permissão necessária;
+
 - empresa correta;
+
 - acesso ao recurso solicitado.
 
 ### Supabase
@@ -161,10 +209,15 @@ Foi implementado o sistema de membros da empresa através de:
 Informação relevante:
 
 - utilizador;
+
 - empresa;
+
 - role;
+
 - username;
+
 - estado ativo;
+
 - alteração obrigatória de password.
 
 Os funcionários não são eliminados quando deixam a empresa.
@@ -198,12 +251,19 @@ Foi implementado o login próprio do Nexora Booking através de username e passw
 Fluxo atual:
 
 1. utilizador introduz username e password;
+
 2. `/api/booking/login` localiza o membro;
+
 3. o membro é validado como ativo;
+
 4. o email associado ao utilizador Auth é obtido no servidor;
+
 5. o Supabase Auth valida a password;
+
 6. a sessão é estabelecida no navegador;
+
 7. utilizadores com `must_change_password = true` são encaminhados para a alteração de password;
+
 8. restantes utilizadores entram no Booking.
 
 O login foi testado e validado no navegador.
@@ -219,17 +279,29 @@ Foram implementadas melhorias na navegação e gestão das marcações.
 ### Funcionalidades
 
 - vista diária;
+
 - vista semanal;
+
 - navegação entre dias;
+
 - navegação entre semanas;
+
 - clique no cabeçalho de um dia semanal para abrir a vista diária;
+
 - clique numa marcação para abrir detalhes;
+
 - modal compacto de detalhes;
+
 - ações de gestão dentro do modal;
+
 - confirmar marcação;
+
 - cancelar marcação;
+
 - respeito pela permissão `marcacoes`;
+
 - marcações canceladas deixam de aparecer no calendário;
+
 - horários apresentados de acordo com o fuso horário da empresa.
 
 ### Posicionamento das marcações
@@ -241,6 +313,7 @@ Anteriormente a posição era calculada em percentagem relativamente à altura t
 O cálculo atual utiliza a altura real das linhas da grelha:
 
 - vista semanal: 80px por hora;
+
 - vista diária: 90px por hora.
 
 Os cartões ficam alinhados diretamente com os horários apresentados na grelha.
@@ -268,12 +341,19 @@ O fluxo de marcação pública do Nexora Booking foi implementado e validado.
 O cliente consegue:
 
 - consultar a empresa;
+
 - consultar os serviços;
+
 - selecionar profissional;
+
 - consultar datas;
+
 - consultar horários disponíveis;
+
 - preencher os seus dados;
+
 - confirmar a marcação;
+
 - receber a confirmação da marcação.
 
 As marcações públicas são criadas inicialmente com estado:
@@ -331,9 +411,13 @@ O profissional existe normalmente e não possui uma conta Booking.
 Pode possuir:
 
 - username;
+
 - conta Supabase Auth;
+
 - estado ativo;
+
 - `must_change_password`;
+
 - permissões específicas.
 
 O acesso do profissional é associado através de:
@@ -357,21 +441,37 @@ Foi realizada uma revisão abrangente do Booking.
 ### Áreas revistas
 
 - autenticação;
+
 - autorização;
+
 - proxy;
+
 - páginas;
+
 - APIs;
+
 - Supabase;
+
 - RLS;
+
 - policies;
+
 - permissões;
+
 - acesso direto por URL;
+
 - isolamento por empresa;
+
 - ações disponíveis por perfil;
+
 - funções `SECURITY DEFINER`;
+
 - permissões `GRANT EXECUTE`;
+
 - variáveis de ambiente;
+
 - exposição de segredos;
+
 - possíveis bypasses de autorização.
 
 ---
@@ -381,17 +481,29 @@ Foi realizada uma revisão abrangente do Booking.
 Foram revistas as rotas de:
 
 - agendamentos;
+
 - estados das marcações;
+
 - cancelamento;
+
 - conclusão;
+
 - clientes;
+
 - serviços;
+
 - profissionais;
+
 - disponibilidade;
+
 - bloqueios;
+
 - configurações;
+
 - onboarding;
+
 - login;
+
 - primeiro acesso/alteração de password.
 
 As APIs mantêm validações de autenticação, membro ativo, permissões e empresa.
@@ -407,21 +519,37 @@ Foi realizada revisão das principais tabelas do Booking.
 Entre as tabelas revistas:
 
 - `agendamentos`
+
 - `bloqueios`
+
 - `clientes`
+
 - `companies`
+
 - `company_ai_settings`
+
 - `company_documents`
+
 - `company_knowledge`
+
 - `company_member_permissions`
+
 - `company_members`
+
 - `company_subscriptions`
+
 - `product_subscriptions`
+
 - `products`
+
 - `profissionais`
+
 - `profissionais_servicos`
+
 - `servicos`
+
 - `configuracoes_agendamento`
+
 - `disponibilidade`
 
 O isolamento por empresa é baseado no utilizador autenticado e nas relações existentes em `company_members`.
@@ -433,7 +561,9 @@ O isolamento por empresa é baseado no utilizador autenticado e nas relações e
 As funções principais utilizadas para autorização incluem:
 
 - `private.is_company_admin(uuid)`
+
 - `private.has_company_permission(uuid, text)`
+
 - `public.is_nexora_admin()`
 
 As funções privilegiadas utilizam `SECURITY DEFINER` quando necessário e estão configuradas com `search_path` restrito.
@@ -445,7 +575,9 @@ A execução pública das funções privilegiadas foi revista e os `GRANT EXECUT
 A execução autenticada foi restringida para funções que deixaram de ser necessárias diretamente pelo cliente, incluindo:
 
 - `complete_first_login()`
+
 - `criar_empresa_booking(text, text)`
+
 - `get_booking_status(uuid)`
 
 A função:
@@ -469,22 +601,39 @@ Foi testado um funcionário real do ambiente de desenvolvimento com permissões 
 Resultado confirmado:
 
 - acesso ao Calendário quando possui `agenda`;
+
 - acesso a Clientes quando possui `clientes`;
+
 - bloqueio do Financeiro sem `financeiro`;
+
 - bloqueio das restantes áreas sem a respetiva permissão;
+
 - bloqueio através de acesso direto por URL;
+
 - login Booking por username e password;
+
 - primeiro acesso com alteração obrigatória de password;
+
 - estado do Booking apresentado corretamente;
+
 - criação de marcações públicas;
+
 - reutilização de cliente existente;
+
 - confirmação de marcações;
+
 - cancelamento de marcações;
+
 - remoção de marcações canceladas do calendário;
+
 - vista diária;
+
 - vista semanal;
+
 - posicionamento correto dos cartões de marcação;
+
 - navegação entre dias e semanas;
+
 - build de produção validado durante as alterações.
 
 ---
@@ -568,6 +717,7 @@ Funcionário:
 Permissões atuais do funcionário:
 
 - `agenda`
+
 - `clientes`
 
 Profissional com acesso Booking testado:
@@ -584,7 +734,83 @@ Administrador:
 
 ---
 
-# Próxima etapa
+**# Nexora AI + Booking público
+
+Estado: FUNCIONAL E VALIDADO
+
+Foi concluída a integração do Nexora AI com o fluxo público de marcação do Nexora Booking.
+
+Funcionalidades implementadas
+
+integração da IA pública com o Booking;
+
+consulta real dos serviços disponíveis;
+
+consulta real dos profissionais associados aos serviços;
+
+consulta real dos horários disponíveis;
+
+criação de proposta de marcação;
+
+recolha de nome, email e telefone antes da criação da proposta;
+
+validação server-side dos dados obrigatórios;
+
+validação do formato do email;
+
+confirmação apenas após confirmação explícita do cliente;
+
+criação da marcação real no Booking após confirmação;
+
+marcação confirmada apresentada corretamente no calendário;
+
+revalidação da disponibilidade no momento da confirmação;
+
+proteção contra confirmação duplicada;
+
+isolamento das propostas através de publicSessionId;
+
+isolamento entre diferentes sessões públicas;
+
+uma sessão pública não consegue confirmar a proposta de outra sessão;
+
+alteração de serviço, profissional, data ou hora invalida a proposta pendente anterior;
+
+criação de nova proposta quando os dados da reserva são alterados;
+
+propostas expiradas não podem ser confirmadas;
+
+conflitos de disponibilidade entre a criação da proposta e a confirmação são novamente validados;
+
+utilização da mesma infraestrutura de Booking para garantir que a marcação criada pela IA respeita as regras existentes.
+
+Testes funcionais realizados
+
+Foram realizados testes específicos ao fluxo público de IA:
+
+confirmação explícita de uma proposta;
+
+tentativa de confirmação duplicada;
+
+conflito quando dois clientes tentam utilizar o mesmo horário;
+
+alteração da hora depois da criação da proposta;
+
+isolamento entre sessões públicas diferentes;
+
+tentativa de avançar com dados incompletos;
+
+rejeição de emails em formato inválido.
+
+Todos os testes foram concluídos com resultado esperado.
+
+O fluxo completo validado é:
+
+cliente → Nexora AI → serviço → profissional → horário → dados → proposta → confirmação explícita → marcação real → calendário
+
+O build de produção foi validado após as alterações.
+
+Próxima etapa**
 
 ## Etapa 12 — Revisão geral e estabilização
 
@@ -593,13 +819,21 @@ Administrador:
 Objetivos:
 
 - revisão geral do código;
+
 - correção de bugs;
+
 - validação dos fluxos;
+
 - testes;
+
 - revisão da interface;
+
 - performance;
+
 - hardening de segurança;
+
 - preparação para produção;
+
 - validação do deploy Netlify.
 
 ---
@@ -609,12 +843,21 @@ Objetivos:
 Antes de iniciar uma nova etapa:
 
 1. Implementar.
+
 2. Testar.
+
 3. Corrigir.
+
 4. Confirmar funcionamento.
+
 5. Atualizar `CURRENT-STATE.md`.
+
 6. Atualizar `ROADMAP.md`.
+
 7. Atualizar `CHANGELOG.md`.
+
 8. Criar commit Git.
+
 9. Fazer push quando a fase estiver validada.
+
 10. Validar o deploy após o push.

@@ -55,6 +55,11 @@ type HorariosResponse = {
 
 type Passo = "servico" | "profissional" | "data" | "dados" | "resumo";
 
+type MensagemIA = {
+    role: "user" | "assistant";
+    content: string;
+};
+
 function formatarData(data: string) {
     if (!data) {
         return "";
@@ -240,6 +245,45 @@ export default function PublicBookingPage() {
 
     const [marcacaoCriada, setMarcacaoCriada] =
         useState(false);
+
+    const [mensagensIA, setMensagensIA] = useState<MensagemIA[]>([
+        {
+            role: "assistant",
+            content:
+                "Olá! Sou a Nexora AI. Posso ajudar com serviços, profissionais, preços e horários disponíveis.",
+        },
+    ]);
+
+    const [mensagemIA, setMensagemIA] = useState("");
+    const [aEnviarIA, setAEnviarIA] = useState(false);
+    const [erroIA, setErroIA] = useState("");
+    const [mostrarIA, setMostrarIA] = useState(true);
+
+    const [publicSessionId, setPublicSessionId] =
+        useState("");
+
+    useEffect(() => {
+        if (!empresaId) {
+            return;
+        }
+
+        const chave =
+            `nexora-booking-public-session:${empresaId}`;
+
+        let sessao =
+            window.sessionStorage.getItem(chave);
+
+        if (!sessao) {
+            sessao = crypto.randomUUID();
+
+            window.sessionStorage.setItem(
+                chave,
+                sessao,
+            );
+        }
+
+        setPublicSessionId(sessao);
+    }, [empresaId]);
 
     const dataHoje = obterDataHoje();
 
@@ -711,6 +755,57 @@ export default function PublicBookingPage() {
         }
     }
 
+    async function enviarMensagemIA() {
+        const texto = mensagemIA.trim();
+
+        if (
+            !texto ||
+            aEnviarIA ||
+            !empresaId ||
+            !publicSessionId
+        ) {
+            return;
+        }
+
+        setErroIA("");
+        setAEnviarIA(true);
+        setMensagemIA("");
+
+        const novasMensagens: MensagemIA[] = [...mensagensIA, { role: "user", content: texto }];
+        setMensagensIA(novasMensagens);
+
+        try {
+            const response = await fetch("/api/ai/public-booking", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    empresaId,
+                    publicSessionId,
+                    mensagem: texto,
+                    mensagens: novasMensagens.slice(-12),
+                }),
+            });
+
+            const result = (await response.json()) as { resposta?: string; error?: string };
+
+            if (!response.ok) {
+                setErroIA(result.error || "Não foi possível obter uma resposta da Nexora AI.");
+                return;
+            }
+
+            if (!result.resposta) {
+                setErroIA("A Nexora AI não devolveu uma resposta válida.");
+                return;
+            }
+
+            setMensagensIA((atual) => [...atual, { role: "assistant", content: result.resposta as string }]);
+        } catch {
+            setErroIA("Não foi possível contactar a Nexora AI. Tente novamente.");
+        } finally {
+            setAEnviarIA(false);
+        }
+    }
+
     if (aCarregarEmpresa || aCarregarServicos) {
         return (
             <main className="min-h-screen bg-slate-950 px-4 py-10 text-white">
@@ -841,6 +936,36 @@ export default function PublicBookingPage() {
                         </p>
                     )}
                 </div>
+
+                {/* Nexora AI */}
+                <section className="mb-8 overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900/80 shadow-2xl">
+                    <button type="button" onClick={() => setMostrarIA((atual) => !atual)} className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-slate-800/60 sm:px-6">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-lg text-cyan-400">✦</div>
+                            <div><p className="font-semibold text-white">Nexora AI</p><p className="text-xs text-slate-500">Assistente de reservas</p></div>
+                        </div>
+                        <span className="text-sm text-slate-500">{mostrarIA ? "Ocultar" : "Abrir"}</span>
+                    </button>
+                    {mostrarIA && (
+                        <div className="border-t border-slate-800">
+                            <div className="max-h-80 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
+                                {mensagensIA.map((mensagem, index) => (
+                                    <div key={`${mensagem.role}-${index}`} className={`flex ${mensagem.role === "user" ? "justify-end" : "justify-start"}`}>
+                                        <div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${mensagem.role === "user" ? "bg-cyan-400 text-slate-950" : "border border-slate-800 bg-slate-950/70 text-slate-300"}`}>
+                                            {mensagem.content}
+                                        </div>
+                                    </div>
+                                ))}
+                                {aEnviarIA && <div className="flex justify-start"><div className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-500">A Nexora AI está a pesquisar...</div></div>}
+                            </div>
+                            {erroIA && <div className="px-5 pb-3 text-sm text-red-300 sm:px-6">{erroIA}</div>}
+                            <form onSubmit={(event) => { event.preventDefault(); void enviarMensagemIA(); }} className="flex gap-2 border-t border-slate-800 p-4 sm:p-5">
+                                <input value={mensagemIA} onChange={(event) => setMensagemIA(event.target.value)} disabled={aEnviarIA} placeholder="Pergunte sobre serviços, preços ou horários..." className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none transition focus:border-cyan-400 disabled:opacity-50" />
+                                <button type="submit" disabled={aEnviarIA || !mensagemIA.trim()} className="rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40">Enviar</button>
+                            </form>
+                        </div>
+                    )}
+                </section>
 
                 {/* Indicador de progresso */}
 

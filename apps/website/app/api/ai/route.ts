@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import {
   nexoraTools,
   nexoraToolDefinitions,
@@ -90,7 +91,149 @@ REGRAS:
 16. Se existirem informações diferentes entre documentos,
     não escolhas uma delas arbitrariamente. Explica que os
     documentos apresentam informações diferentes.
-`;
+
+17. Quando o utilizador perguntar sobre os serviços disponíveis
+    para marcação, utiliza a ferramenta booking_listar_servicos.
+    Não inventes serviços de Booking com base no conhecimento
+    da empresa.
+
+18. Quando o utilizador escolher ou perguntar por profissionais
+    que realizam um determinado serviço, utiliza a ferramenta
+    booking_listar_profissionais e fornece o servico_id correto.
+
+19. Quando o utilizador indicar um serviço, um profissional e
+    uma data para marcação, utiliza a ferramenta
+    booking_listar_horarios para consultar os horários realmente
+    disponíveis.
+
+20. Os dados devolvidos pelas ferramentas de Booking são dados
+    reais do sistema e devem ter prioridade sobre informações
+    genéricas existentes no conhecimento da empresa.
+
+21. Nunca inventes horários, profissionais ou serviços de Booking.
+
+22. Quando uma ferramenta de Booking devolver uma lista vazia,
+    informa claramente o utilizador de que não existem opções
+    disponíveis para os critérios indicados.
+
+  23. Quando o utilizador quiser marcar um serviço, podes conduzir
+      o processo de marcação utilizando as ferramentas de Booking
+      disponíveis. Não confundas uma consulta de disponibilidade com
+      uma marcação efetiva.
+
+  24. Antes de criares uma proposta de marcação, confirma que tens
+      uma combinação concreta de serviço, profissional, data e hora.
+      Se faltar algum destes dados, utiliza as ferramentas de Booking
+      para os obter ou pergunta ao utilizador o que falta.
+
+  25. Para criar uma proposta de marcação, utiliza a ferramenta
+      booking_criar_proposta apenas quando o utilizador estiver
+      efetivamente a pedir para marcar e já existir uma opção concreta
+      de serviço, profissional, data e hora.
+
+  26. Para a marcação também são necessários os dados do cliente:
+      nome, email e telefone. Se algum destes dados ainda não estiver
+      disponível, pede-o ao utilizador antes de criares a proposta.
+      Não inventes dados pessoais.
+
+  27. Depois de criares uma proposta com sucesso, apresenta ao
+      utilizador um resumo claro da marcação, incluindo serviço,
+      profissional, data, hora, duração e preço, e pede confirmação
+      explícita antes de avançar.
+
+  28. Nunca utilizes booking_confirmar_proposta apenas porque existe
+      uma proposta pendente. A existência de uma proposta NÃO significa
+      que o utilizador a confirmou.
+
+  29. Só utiliza booking_confirmar_proposta quando a mensagem atual
+      do utilizador for uma confirmação explícita e inequívoca da
+      proposta apresentada imediatamente antes, por exemplo:
+      "sim", "confirmo", "pode marcar", "pode avançar", "pode confirmar".
+      Se houver qualquer dúvida sobre o que o utilizador está a
+      confirmar, pede esclarecimento em vez de confirmar.
+
+  30. Se o utilizador alterar o serviço, profissional, data ou hora
+      depois de uma proposta ter sido criada, não confirmes a proposta
+      anterior. Consulta novamente a disponibilidade e cria uma nova
+      proposta para a nova escolha.
+
+  31. Se a ferramenta de confirmação indicar que a proposta expirou,
+      ficou indisponível ou deixou de ser válida, não afirmes que a
+      marcação foi realizada. Consulta novamente os horários disponíveis
+      e conduz o utilizador para uma nova proposta.
+
+  32. Considera uma marcação concluída apenas quando
+      booking_confirmar_proposta devolver explicitamente sucesso.
+      Nunca afirmes que uma marcação foi criada apenas porque uma
+      proposta foi criada.
+
+  33. Quando estiveres a conduzir uma consulta ou marcação de Booking,
+      mantém o contexto das escolhas feitas pelo utilizador e utiliza
+      os IDs devolvidos pelas ferramentas nas chamadas seguintes.
+
+  34. Nunca apresentes ao utilizador IDs internos, UUIDs, IDs de
+      serviços, IDs de profissionais, IDs de empresas, IDs de propostas
+      ou outros identificadores técnicos devolvidos pelas ferramentas.
+
+  35. Os IDs devolvidos pelas ferramentas de Booking devem ser
+      utilizados apenas internamente para realizar as chamadas
+      seguintes. Ao comunicar os resultados ao utilizador, apresenta
+      apenas informações úteis e compreensíveis, como nome, descrição,
+      duração, preço, profissional, data e horário.
+
+  36. Não peças ao utilizador para fornecer um ID de serviço,
+      profissional ou proposta. Utiliza internamente os IDs devolvidos
+      pelas ferramentas.
+
+  37. Quando o utilizador perguntar pelos profissionais de um
+      serviço pelo nome, identifica internamente o respetivo
+      servico_id e utiliza a ferramenta booking_listar_profissionais
+      sem pedir o ID ao utilizador.
+
+  38. Quando o utilizador indicar um profissional pelo nome e uma
+      data, utiliza internamente o profissional_id correspondente
+      obtido anteriormente e consulta os horários disponíveis sem
+      pedir IDs ao utilizador.
+
+  39. Quando o utilizador perguntar apenas por serviços, profissionais
+      ou horários, não cries propostas. Usa apenas as ferramentas de
+      consulta necessárias para responder.
+
+  40. Os dados reais devolvidos pelas ferramentas de Booking têm
+      prioridade sobre qualquer informação genérica existente no
+      conhecimento da empresa, inclusive durante o processo de
+      criação e confirmação de uma marcação.
+      `;
+
+
+function isExplicitBookingConfirmation(value: string) {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.!?]+$/g, "")
+    .trim();
+
+  const confirmations = new Set([
+    "sim",
+    "sim confirmo",
+    "sim, confirmo",
+    "confirmo",
+    "confirmado",
+    "esta confirmado",
+    "pode marcar",
+    "pode confirmar",
+    "pode avancar",
+    "pode prosseguir",
+    "pode fazer a marcacao",
+    "pode criar",
+    "avanca",
+    "confirmar",
+  ]);
+
+  return confirmations.has(normalized);
+}
 
 type FontePesquisa = {
   numero: number;
@@ -501,6 +644,245 @@ ${documento.extracted_text || ""}
         })
       );
 
+    /*
+     * Confirmação explícita de uma proposta:
+     *
+     * Quando a última mensagem é uma confirmação inequívoca
+     * e a mensagem anterior da IA pediu confirmação, executamos
+     * diretamente a ferramenta de confirmação.
+     *
+     * Assim, uma mensagem como "confirmo" não fica dependente
+     * da decisão do modelo de escolher novamente a ferramenta.
+     */
+    const ultimaMensagemTexto =
+      typeof ultimaMensagem?.content === "string"
+        ? ultimaMensagem.content
+        : "";
+
+    const mensagemAnterior =
+      mensagens.length >= 2
+        ? mensagens[mensagens.length - 2]
+        : null;
+
+    const confirmacaoExplicita =
+      ultimaMensagem?.role === "user" &&
+      isExplicitBookingConfirmation(
+        ultimaMensagemTexto
+      );
+
+    const assistentePediuConfirmacao =
+      mensagemAnterior?.role === "assistant" &&
+      /confirm|marcar|avançar|avancar/i.test(
+        mensagemAnterior.content || ""
+      );
+
+    if (
+      confirmacaoExplicita &&
+      assistentePediuConfirmacao
+    ) {
+      const supabaseAdmin =
+        createSupabaseAdminClient();
+
+      const {
+        data: propostaPendente,
+        error: propostaPendenteError,
+      } = await supabaseAdmin
+        .from("ai_booking_proposals")
+        .select("id")
+        .eq(
+          "company_id",
+          empresa.id
+        )
+        .eq(
+          "user_id",
+          user.id
+        )
+        .eq(
+          "conversation_id",
+          conversaId
+        )
+        .eq(
+          "estado",
+          "pendente"
+        )
+        .gt(
+          "expires_at",
+          new Date().toISOString()
+        )
+        .order(
+          "created_at",
+          { ascending: false }
+        )
+        .limit(1)
+        .maybeSingle();
+
+      if (propostaPendenteError) {
+        console.error(
+          "[BOOKING_CONFIRMAR] Erro ao procurar proposta pendente:",
+          propostaPendenteError
+        );
+      } else if (propostaPendente) {
+        const ferramentaConfirmacao =
+          nexoraTools.find(
+            (tool) =>
+              tool.name ===
+              "booking_confirmar_proposta"
+          );
+
+        if (ferramentaConfirmacao) {
+          console.log(
+            "[BOOKING_CONFIRMAR] CONFIRMAÇÃO EXPLÍCITA DETETADA",
+            {
+              propostaId:
+                propostaPendente.id,
+              userId: user.id,
+              companyId: empresa.id,
+              conversationId: conversaId,
+            }
+          );
+
+          try {
+            const resultadoConfirmacao =
+              await ferramentaConfirmacao.execute(
+                {
+                  proposta_id:
+                    propostaPendente.id,
+                },
+                {
+                  userId: user.id,
+                  companyId: empresa.id,
+                  conversationId:
+                    conversaId,
+                }
+              );
+
+            if (
+              resultadoConfirmacao &&
+              typeof resultadoConfirmacao ===
+                "object" &&
+              "success" in resultadoConfirmacao &&
+              resultadoConfirmacao.success === true
+            ) {
+              const resultado =
+                resultadoConfirmacao as {
+                  success: true;
+                  servico?: {
+                    nome?: string;
+                  };
+                  profissional?: {
+                    nome?: string;
+                  };
+                  data?: string;
+                  hora?: string;
+                  valor?: number | null;
+                };
+
+              const dataFormatada =
+                resultado.data
+                  ? new Intl.DateTimeFormat(
+                      "pt-PT",
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }
+                    ).format(
+                      new Date(
+                        `${resultado.data}T12:00:00`
+                      )
+                    )
+                  : "";
+
+              const respostaConfirmacao =
+                [
+                  "A marcação foi confirmada com sucesso.",
+                  resultado.servico?.nome
+                    ? `Serviço: ${resultado.servico.nome}.`
+                    : null,
+                  resultado.profissional?.nome
+                    ? `Profissional: ${resultado.profissional.nome}.`
+                    : null,
+                  dataFormatada
+                    ? `Data: ${dataFormatada}.`
+                    : null,
+                  resultado.hora
+                    ? `Hora: ${resultado.hora}.`
+                    : null,
+                  resultado.valor !==
+                    undefined &&
+                  resultado.valor !== null
+                    ? `Valor: ${Number(
+                        resultado.valor
+                      ).toFixed(2).replace(".", ",")} €.`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+              const {
+                error: mensagemConfirmacaoError,
+              } = await supabase
+                .from("conversation_messages")
+                .insert({
+                  conversation_id:
+                    conversaId,
+                  role: "assistant",
+                  content:
+                    respostaConfirmacao,
+                });
+
+              if (mensagemConfirmacaoError) {
+                console.error(
+                  "Erro ao guardar confirmação da IA:",
+                  mensagemConfirmacaoError
+                );
+
+                return Response.json(
+                  {
+                    error:
+                      "A marcação foi realizada, mas não foi possível guardar a resposta da conversa.",
+                  },
+                  { status: 500 }
+                );
+              }
+
+              await supabase
+                .from("conversations")
+                .update({
+                  updated_at:
+                    new Date().toISOString(),
+                })
+                .eq(
+                  "id",
+                  conversaId
+                );
+
+              return Response.json({
+                resposta:
+                  respostaConfirmacao,
+                conversationId:
+                  conversaId,
+                fontes: [],
+                ai_enabled: true,
+                ai_via_booking_campaign:
+                  aiDisponivelPorCampanha,
+              });
+            }
+
+            console.error(
+              "[BOOKING_CONFIRMAR] A confirmação devolveu resultado sem sucesso:",
+              resultadoConfirmacao
+            );
+          } catch (erroConfirmacao) {
+            console.error(
+              "[BOOKING_CONFIRMAR] Erro na confirmação determinística:",
+              erroConfirmacao
+            );
+          }
+        }
+      }
+    }
+
     let resposta =
       await openai.responses.create({
         model: "gpt-5-mini",
@@ -520,18 +902,35 @@ ${documento.extracted_text || ""}
           inputMensagens,
       });
 
-    const chamadasFerramentas =
-      resposta.output.filter(
-        (item) =>
-          item.type ===
-          "function_call"
-      );
-
     const fontes: FontePesquisa[] = [];
 
-    if (
-      chamadasFerramentas.length > 0
+    /*
+     * Executar ferramentas em várias rondas.
+     *
+     * Isto permite fluxos como:
+     * serviço -> profissional -> horários
+     * sem limitar a Nexora AI a apenas uma chamada de ferramenta.
+     */
+    const MAX_RONDAS_FERRAMENTAS = 8;
+
+    for (
+      let rondaFerramentas = 0;
+      rondaFerramentas < MAX_RONDAS_FERRAMENTAS;
+      rondaFerramentas++
     ) {
+      const chamadasFerramentas =
+        resposta.output.filter(
+          (item) =>
+            item.type ===
+            "function_call"
+        );
+
+      if (
+        chamadasFerramentas.length === 0
+      ) {
+        break;
+      }
+
       const resultadosFerramentas = [];
 
       for (const chamada of chamadasFerramentas) {
@@ -572,6 +971,8 @@ ${documento.extracted_text || ""}
                 userId: user.id,
                 companyId:
                   empresa.id,
+                conversationId:
+                  conversaId,
               }
             );
 
@@ -581,7 +982,7 @@ ${documento.extracted_text || ""}
             "web_search" &&
             resultado &&
             typeof resultado ===
-            "object"
+              "object"
           ) {
             const resultadoPesquisa =
               resultado as {
@@ -641,7 +1042,7 @@ ${documento.extracted_text || ""}
             instrucoesNexora(
               empresa.name,
               empresa.description ||
-              "",
+                "",
               contextoEmpresa,
               contextoDocumentos
             ),

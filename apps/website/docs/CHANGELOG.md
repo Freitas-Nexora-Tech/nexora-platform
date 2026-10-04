@@ -1,155 +1,5 @@
 # Nexora Booking — Changelog
 
-2026-09-30 — Login, marcações públicas, calendário e estabilização
-
-Login do Booking
-
-Foi corrigido o fluxo de login do Nexora Booking.
-
-Implementado e validado:
-
-login através de username e password;
-
-utilização da API /api/booking/login;
-
-estabelecimento da sessão Supabase Auth no navegador;
-
-encaminhamento para alteração de password quando must_change_password = true;
-
-entrada normal no Booking quando o primeiro acesso já foi concluído.
-
-Também foi corrigido o import do cliente Supabase SSR na página de login.
-
-Estado do Booking
-
-Foi corrigido o problema em que o dashboard apresentava:
-
-Agendamentos suspensos
-
-apesar de agendamento_ativo = true.
-
-A consulta do estado deixou de depender da função get_booking_status() no cliente autenticado.
-
-O dashboard passou a consultar a configuração server-side através do cliente administrativo, depois de validar o acesso do utilizador e a empresa.
-
-A alteração foi validada no navegador.
-
-Marcações públicas
-
-O fluxo de marcação pública foi validado.
-
-Testado:
-
-seleção de serviço;
-
-seleção de profissional;
-
-seleção de data;
-
-seleção de horário;
-
-preenchimento dos dados do cliente;
-
-criação da marcação;
-
-reutilização de cliente existente através do email;
-
-criação da marcação com estado pendente;
-
-controlo de capacidade do horário;
-
-libertação do horário após cancelamento.
-
-Calendário
-
-Foram validadas:
-
-vista semanal;
-
-vista diária;
-
-navegação entre dias;
-
-navegação entre semanas;
-
-abertura da vista diária através do cabeçalho do dia;
-
-abertura do detalhe da marcação;
-
-confirmação;
-
-cancelamento;
-
-remoção da marcação cancelada da vista.
-
-Correção do posicionamento dos cartões
-
-Foi identificado um desalinhamento entre os cartões das marcações e a grelha horária da vista semanal.
-
-A causa estava no cálculo da posição vertical através de percentagens relativamente à altura total do contentor.
-
-O cálculo foi alterado para utilizar posições em pixels alinhadas com a altura real das linhas:
-
-vista semanal: 80px por hora;
-
-vista diária: 90px por hora.
-
-A correção foi testada com marcações reais e validada visualmente.
-
-Validação
-
-npm run build: OK
-
-Login Booking: OK
-
-Estado Booking: OK
-
-Marcações públicas: OK
-
-Calendário semanal: OK
-
-Calendário diário: OK
-
-Confirmar/cancelar marcações: OK
-
-Posicionamento dos cartões: OK
-
-Segurança
-
-Durante esta fase também foram aplicadas as alterações de hardening já previstas:
-
-complete_first_login() deixou de ser executável diretamente pelo utilizador autenticado;
-
-get_booking_status(uuid) deixou de ser executável diretamente pelo utilizador autenticado;
-
-criar_empresa_booking(text,text) deixou de ser executável diretamente pelo utilizador autenticado;
-
-is_nexora_admin() mantém execução autenticada porque é utilizado pelas policies RLS;
-
-criar_agendamento(...) mantém execução pública de forma intencional para suportar marcações públicas.
-
-Estado da Etapa 12
-
-A Etapa 12 — Revisão geral e estabilização — encontra-se EM ANDAMENTO.
-
-Próximos objetivos:
-
-completar a revisão funcional;
-
-completar o hardening restante;
-
-validar os fluxos ainda não testados;
-
-validar produção;
-
-atualizar documentação;
-
-criar commit;
-
-fazer push;
-
-validar o deploy.
-
 Este ficheiro regista as principais alterações, decisões e marcos do desenvolvimento do Nexora Booking.
 
 ---
@@ -761,3 +611,195 @@ Antes de iniciar uma nova etapa importante:
 8. Criar commit Git.
 
 9. Fazer push apenas quando explicitamente decidido.
+
+2026-10-04 — Nexora AI + Booking público
+
+Integração concluída
+
+Foi concluída a integração do Nexora AI com o fluxo público de marcação do Nexora Booking.
+
+A IA pública passou a utilizar as ferramentas reais do Booking para consultar disponibilidade e conduzir o processo de marcação.
+
+Funcionalidades implementadas
+
+consulta real dos serviços;
+
+consulta real dos profissionais;
+
+consulta real dos horários disponíveis;
+
+criação de proposta de marcação;
+
+recolha de nome, email e telefone;
+
+validação server-side dos dados obrigatórios;
+
+validação do formato do email;
+
+confirmação apenas após confirmação explícita do cliente;
+
+criação da marcação real no Booking;
+
+associação da proposta à sessão pública através de publicSessionId;
+
+revalidação da disponibilidade no momento da confirmação;
+
+proteção contra confirmação duplicada;
+
+isolamento entre sessões públicas;
+
+uma sessão pública não consegue confirmar a proposta de outra sessão;
+
+alteração de serviço, profissional, data ou hora invalida a proposta pendente anterior;
+
+criação de nova proposta quando os dados da reserva são alterados;
+
+tratamento de propostas expiradas;
+
+rejeição de conflitos de disponibilidade no momento da confirmação.
+
+Fluxo validado
+
+O fluxo completo validado é:
+
+cliente → Nexora AI → serviço → profissional → horário → dados → proposta → confirmação explícita → marcação real → calendário
+
+A marcação criada pela IA é uma marcação real do Nexora Booking e fica disponível no calendário da empresa.
+
+Testes realizados
+
+Foram realizados testes específicos ao fluxo público de IA:
+
+confirmação explícita de uma proposta;
+
+tentativa de confirmação duplicada;
+
+dois clientes a tentar utilizar o mesmo horário;
+
+alteração da hora depois da criação da proposta;
+
+isolamento entre sessões públicas diferentes;
+
+tentativa de avançar com dados incompletos;
+
+rejeição de email em formato inválido.
+
+Todos os testes foram concluídos com o resultado esperado.
+
+Build
+
+O build de produção foi validado após as alterações.
+
+Estado
+
+NEXORA AI + BOOKING PÚBLICO — FUNCIONAL E VALIDADO
+
+2026-10-04 — Propostas de Booking com sessões públicas
+
+Persistência da sessão pública
+
+Foi implementado o suporte a sessões públicas no fluxo de propostas e conversas da IA.
+
+As tabelas relacionadas com conversas e propostas passaram a suportar:
+
+public_session_id
+
+As propostas públicas utilizam a sessão pública em vez de depender de um utilizador autenticado.
+
+As propostas internas continuam associadas ao utilizador autenticado.
+
+Segurança
+
+O modelo impede que uma sessão pública confirme ou utilize uma proposta pertencente a outra sessão.
+
+A separação foi validada através de testes com sessões públicas diferentes.
+
+2026-10-04 — Confirmação explícita de marcações pela IA
+
+Problema corrigido
+
+Foi identificado um caso em que o modelo podia interpretar uma mensagem de confirmação sem executar corretamente a confirmação da proposta.
+
+Correção
+
+Foi implementado tratamento determinístico no endpoint de IA para mensagens de confirmação explícita.
+
+Quando existe uma proposta pendente válida e a mensagem atual corresponde a uma confirmação explícita, o sistema procura a proposta da conversa/sessão atual e executa a confirmação através da ferramenta:
+
+booking_confirmar_proposta
+
+A confirmação continua sujeita às validações do Booking.
+
+Resultado
+
+A confirmação pela IA passou a criar efetivamente a marcação no Booking quando o cliente confirma a proposta.
+
+2026-10-04 — Alteração de reserva antes da confirmação
+
+Foi corrigido o fluxo em que o cliente podia alterar a hora ou outros dados da reserva depois de existir uma proposta pendente.
+
+Quando o cliente altera:
+
+serviço;
+
+profissional;
+
+data;
+
+hora;
+
+a proposta pendente anterior é invalidada e uma nova proposta pode ser criada com os novos dados.
+
+Foi realizado teste específico de alteração da hora antes da confirmação.
+
+Resultado:
+
+FUNCIONAMENTO VALIDADO
+
+2026-10-04 — Validação de dados das propostas
+
+Foi reforçada a validação server-side da criação de propostas pela IA.
+
+O sistema passou a validar:
+
+campos obrigatórios;
+
+nome;
+
+email;
+
+telefone;
+
+formato do email;
+
+identificação válida da sessão pública;
+
+associação da proposta à conversa correta.
+
+Dados incompletos ou inválidos não permitem avançar para a criação da proposta.
+
+Resultado validado através de testes funcionais.
+
+2026-10-04 — Etapa 12 em andamento
+
+A integração Nexora AI + Booking público foi concluída funcionalmente e validada.
+
+A Etapa 12 — Revisão geral e estabilização — permanece em andamento.
+
+Próximos trabalhos:
+
+revisão geral;
+
+hardening final;
+
+testes finais;
+
+preparação para produção;
+
+commit;
+
+push;
+
+validação do deploy;
+
+teste final no ambiente publicado.
