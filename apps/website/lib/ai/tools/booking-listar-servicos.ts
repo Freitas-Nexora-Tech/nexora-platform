@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import type { NexoraTool } from "./index";
 
 export const bookingListarServicosTool: NexoraTool = {
@@ -14,7 +14,7 @@ export const bookingListarServicosTool: NexoraTool = {
   },
 
   async execute(_arguments, context) {
-    const supabase = await createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: servicos, error } = await supabase
       .from("servicos")
